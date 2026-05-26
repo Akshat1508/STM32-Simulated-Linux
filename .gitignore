@@ -1,0 +1,12 @@
+# Ignore build outputs
+*.o
+*.out
+*.elf
+*.bin
+*.map
+
+# Ignore QEMU logs
+qemu_log.txt
+
+# Ignore specific output directories
+output/
