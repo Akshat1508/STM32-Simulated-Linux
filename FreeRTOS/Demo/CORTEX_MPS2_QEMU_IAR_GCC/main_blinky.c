@@ -3,7 +3,6 @@
 #include "task.h"
 
 /* --- THE POSIX SHIM --- */
-typedef TaskHandle_t pthread_t;
 struct thread_args { void *(*start_routine) (void *); void *arg; };
 
 void posix_thread_wrapper(void *pvParameters) {
@@ -14,9 +13,10 @@ void posix_thread_wrapper(void *pvParameters) {
 
 int pthread_create(pthread_t *thread, const void *attr, void *(*start_routine) (void *), void *arg) {
     static struct thread_args t_args;
+    (void)attr; // Unused in this simple shim
     t_args.start_routine = start_routine;
     t_args.arg = arg;
-    BaseType_t result = xTaskCreate(posix_thread_wrapper, "POSIX_Thread", 1024, &t_args, tskIDLE_PRIORITY + 1, thread);
+    BaseType_t result = xTaskCreate(posix_thread_wrapper, "POSIX_Thread", 1024, &t_args, tskIDLE_PRIORITY + 1, (TaskHandle_t *)thread);
     return (result == pdPASS) ? 0 : -1;
 }
 
