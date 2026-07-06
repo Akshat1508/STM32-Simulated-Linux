@@ -1,1 +1,0 @@
-This is a secure Vio example to be used with the Corstone-SSE-310 FVP.

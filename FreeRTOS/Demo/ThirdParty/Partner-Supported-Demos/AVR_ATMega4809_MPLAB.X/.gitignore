@@ -1,6 +1,0 @@
-.generated_files
-build
-dist
-debug
-nbproject/*
-!nbproject/*.xml

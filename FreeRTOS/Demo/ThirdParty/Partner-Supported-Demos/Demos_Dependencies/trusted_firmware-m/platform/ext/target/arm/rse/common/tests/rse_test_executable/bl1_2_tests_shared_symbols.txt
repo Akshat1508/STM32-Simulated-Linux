@@ -1,2 +1,0 @@
-copy_and_decrypt_image
-bl1_2_validate_image_at_addr
