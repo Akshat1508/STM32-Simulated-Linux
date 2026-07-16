@@ -95,6 +95,63 @@ SOURCE_FILES += ./RegTest.c
 # Lightweight print formatting to use in place of the heavier GCC equivalent.
 SOURCE_FILES += ./printf-stdarg.c
 
+#
+# Lightweight IP (LwIP) Stack
+#
+LWIP_DIR = $(FREERTOS_ROOT)/../FreeRTOS-Plus/ThirdParty/lwip
+LWIP_SRC = $(LWIP_DIR)/src
+ETHERNET_DRIVER_DIR = $(FREERTOS_ROOT)/../FreeRTOS-Plus/Source/FreeRTOS-Plus-TCP/source/portable/NetworkInterface/MPS2_AN385/ether_lan9118
+
+INCLUDE_DIRS += -I$(LWIP_SRC)/include \
+                -I$(LWIP_SRC)/include/compat/posix \
+                -I$(ETHERNET_DRIVER_DIR)
+
+VPATH += $(LWIP_SRC)/core \
+         $(LWIP_SRC)/core/ipv4 \
+         $(LWIP_SRC)/api \
+         $(LWIP_SRC)/netif \
+         $(ETHERNET_DRIVER_DIR) \
+         $(DEMO_PROJECT)
+
+SOURCE_FILES += $(LWIP_SRC)/core/init.c \
+                $(LWIP_SRC)/core/def.c \
+                $(LWIP_SRC)/core/dns.c \
+                $(LWIP_SRC)/core/inet_chksum.c \
+                $(LWIP_SRC)/core/ip.c \
+                $(LWIP_SRC)/core/mem.c \
+                $(LWIP_SRC)/core/memp.c \
+                $(LWIP_SRC)/core/netif.c \
+                $(LWIP_SRC)/core/pbuf.c \
+                $(LWIP_SRC)/core/raw.c \
+                $(LWIP_SRC)/core/stats.c \
+                $(LWIP_SRC)/core/sys.c \
+                $(LWIP_SRC)/core/tcp.c \
+                $(LWIP_SRC)/core/tcp_in.c \
+                $(LWIP_SRC)/core/tcp_out.c \
+                $(LWIP_SRC)/core/timeouts.c \
+                $(LWIP_SRC)/core/udp.c \
+                $(LWIP_SRC)/core/ipv4/autoip.c \
+                $(LWIP_SRC)/core/ipv4/dhcp.c \
+                $(LWIP_SRC)/core/ipv4/etharp.c \
+                $(LWIP_SRC)/core/ipv4/icmp.c \
+                $(LWIP_SRC)/core/ipv4/igmp.c \
+                $(LWIP_SRC)/core/ipv4/ip4.c \
+                $(LWIP_SRC)/core/ipv4/ip4_addr.c \
+                $(LWIP_SRC)/core/ipv4/ip4_frag.c \
+                $(LWIP_SRC)/netif/ethernet.c \
+                $(LWIP_SRC)/api/api_lib.c \
+                $(LWIP_SRC)/api/api_msg.c \
+                $(LWIP_SRC)/api/err.c \
+                $(LWIP_SRC)/api/if_api.c \
+                $(LWIP_SRC)/api/netbuf.c \
+                $(LWIP_SRC)/api/netdb.c \
+                $(LWIP_SRC)/api/netifapi.c \
+                $(LWIP_SRC)/api/sockets.c \
+                $(LWIP_SRC)/api/tcpip.c \
+                $(DEMO_PROJECT)/sys_arch.c \
+                $(DEMO_PROJECT)/ethernetif.c \
+                $(ETHERNET_DRIVER_DIR)/smsc9220_eth_drv.c
+
 # Percepio TraceRecorder (FreeRTOS-Plus-Trace)
 TRACERECORDER_DIR = $(DEMO_ROOT)/../../FreeRTOS-Plus/Source/FreeRTOS-Plus-Trace
 TRACERECORDER_CFG_DIR = $(DEMO_PROJECT)/TraceRecorderConfig

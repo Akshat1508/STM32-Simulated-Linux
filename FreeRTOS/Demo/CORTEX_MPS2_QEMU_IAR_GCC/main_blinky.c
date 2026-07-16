@@ -5,6 +5,12 @@
 #include "task.h"
 #include "semphr.h"
 
+#include "lwip/sockets.h"
+#include "lwip/tcpip.h"
+#include "lwip/netif.h"
+
+err_t ethernetif_init(struct netif *netif);
+
 /* --- POSIX SEMAPHORE TYPE & PROTOTYPES --- */
 typedef void* sem_t;
 
@@ -12,6 +18,9 @@ int sem_init(sem_t *sem, int pshared, unsigned int value);
 int sem_wait(sem_t *sem);
 int sem_post(sem_t *sem);
 int sem_destroy(sem_t *sem);
+
+/* --- POSIX THREAD PROTOTYPES --- */
+void pthread_exit(void *retval);
 
 /* --- THE POSIX SHIM LAYER IMPLEMENTATION --- */
 
@@ -313,6 +322,86 @@ void* worker_thread_semaphore(void* arg) {
     return NULL;
 }
 
+void* web_server_thread(void* arg) {
+    (void)arg;
+    
+    // Initialize LwIP core stack
+    tcpip_init(NULL, NULL);
+    
+    ip4_addr_t ipaddr, netmask, gw;
+    IP4_ADDR(&ipaddr, 10, 0, 2, 15);
+    IP4_ADDR(&netmask, 255, 255, 255, 0);
+    IP4_ADDR(&gw, 10, 0, 2, 2);
+    
+    static struct netif main_netif;
+    netif_add(&main_netif, &ipaddr, &netmask, &gw, NULL, ethernetif_init, tcpip_input);
+    netif_set_default(&main_netif);
+    netif_set_up(&main_netif);
+    
+    printf("[Web Server] LwIP Initialized. IP address: 10.0.2.15\n");
+    
+    int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd < 0) {
+        printf("[Web Server] Failed to create socket\n");
+        return NULL;
+    }
+    
+    struct sockaddr_in address;
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_port = htons(80);
+    
+    if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
+        printf("[Web Server] Bind failed\n");
+        close(server_fd);
+        return NULL;
+    }
+    
+    if (listen(server_fd, 5) < 0) {
+        printf("[Web Server] Listen failed\n");
+        close(server_fd);
+        return NULL;
+    }
+    
+    printf("[Web Server] Listening on port 80...\n");
+    
+    while (1) {
+        struct sockaddr_in client_addr;
+        socklen_t addr_len = sizeof(client_addr);
+        int client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &addr_len);
+        if (client_fd >= 0) {
+            printf("[Web Server] Client connected from %s:%d\n",
+                   inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+            
+            char buffer[256];
+            int read_bytes = read(client_fd, buffer, sizeof(buffer) - 1);
+            if (read_bytes > 0) {
+                buffer[read_bytes] = '\0';
+                const char *response =
+                    "HTTP/1.1 200 OK\r\n"
+                    "Content-Type: text/html\r\n"
+                    "Connection: close\r\n"
+                    "\r\n"
+                    "<!DOCTYPE html>\n"
+                    "<html>\n"
+                    "<head><title>STM32 Simulated Linux</title></head>\n"
+                    "<body>\n"
+                    "<h1>Hello from STM32 Simulated Linux!</h1>\n"
+                    "<p>This web page is served from a simulated POSIX socket layer running on FreeRTOS inside QEMU.</p>\n"
+                    "</body>\n"
+                    "</html>\n";
+                write(client_fd, response, strlen(response));
+            }
+            close(client_fd);
+        } else {
+            usleep(100000);
+        }
+    }
+    
+    close(server_fd);
+    return NULL;
+}
+
 void* main_posix_app(void* arg) {
     (void)arg;
     
@@ -329,7 +418,7 @@ void* main_posix_app(void* arg) {
         return NULL;
     }
     
-    pthread_t thread1, thread2, sem_thread;
+    pthread_t thread1, thread2, sem_thread, web_server;
     
     // Allocate config for thread 1
     thread_config_t *config1 = pvPortMalloc(sizeof(thread_config_t));
@@ -357,6 +446,10 @@ void* main_posix_app(void* arg) {
         printf("Failed to create Semaphore Worker\n");
     }
     
+    if (pthread_create(&web_server, NULL, web_server_thread, NULL) != 0) {
+        printf("Failed to create Web Server thread\n");
+    }
+    
     // Let workers run for a bit, then signal the semaphore worker
     sleep(2);
     printf("[Main] Posting to semaphore...\n");
@@ -378,6 +471,10 @@ void* main_posix_app(void* arg) {
     printf("[Main] Joining Semaphore Worker...\n");
     pthread_join(sem_thread, &status_sem);
     printf("[Main] Semaphore Worker joined.\n");
+    
+    printf("[Main] Joining Web Server...\n");
+    pthread_join(web_server, NULL);
+    printf("[Main] Web Server joined.\n");
     
     printf("[Main] Final shared counter value: %d (Expected: 10)\n", g_shared_counter);
     

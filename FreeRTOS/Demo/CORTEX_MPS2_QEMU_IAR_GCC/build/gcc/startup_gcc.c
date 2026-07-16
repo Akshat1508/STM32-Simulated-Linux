@@ -33,6 +33,7 @@ extern void xPortPendSVHandler( void );
 extern void xPortSysTickHandler( void );
 extern void TIMER0_Handler( void );
 extern void TIMER1_Handler( void );
+extern void EthernetISR( void );
 
 /* Exception handlers. */
 static void HardFault_Handler( void ) __attribute__( ( naked ) );
@@ -74,7 +75,7 @@ const uint32_t* isr_vector[] __attribute__((section(".isr_vector"), used)) =
     0,
     0,
     0,
-    0, // Ethernet   13
+    ( uint32_t * ) EthernetISR,        // Ethernet   13
 };
 
 void Reset_Handler( void )
