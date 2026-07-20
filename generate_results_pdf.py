@@ -387,7 +387,7 @@ def build_results_pdf(filename="results.pdf"):
         ],
         [
             Paragraph("pthread_join()", table_cell_style),
-            Paragraph("xSemaphoreTake()", table_cell_pass),
+            Paragraph("xSemaphoreTake()", table_cell_style),
             Paragraph("PASSED", table_cell_pass),
             Paragraph("Main thread blocks until target thread exits & gets retval.", table_cell_style)
         ],
