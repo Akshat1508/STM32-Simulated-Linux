@@ -12,38 +12,60 @@ The timeline spans **June 8, 2026 to July 19, 2026**, covering the initial works
 gantt
     title STM32 Simulated Linux - 6-Week Development Timeline
     dateFormat  YYYY-MM-DD
-    axisFormat  %m-%d
+    axisFormat  %b %d
+    tickInterval 1w
+    weekday monday
     todayMarker off
 
-    section Phase 1: Bootstrap & Threading
-    Initial QEMU & FreeRTOS Environment Setup   :done,    t1, 2026-06-08, 2026-06-14
-    Basic POSIX Thread Translation Shim         :done,    t2, 2026-06-11, 2026-06-16
+    section Phase 1: Setup & Threading
+    Env & QEMU Setup             :done, t1, 2026-06-08, 2026-06-14
+    POSIX Thread Shim            :done, t2, 2026-06-11, 2026-06-16
 
-    section Phase 2: Design & Feasibility
-    Research & Feasibility Study                 :done,    t3, 2026-06-15, 2026-06-23
-    Feasibility Report & Heatmap Creation        :done,    t4, 2026-06-22, 2026-06-26
+    section Phase 2: Design
+    Feasibility Study            :done, t3, 2026-06-15, 2026-06-23
+    Feasibility Report           :done, t4, 2026-06-22, 2026-06-26
 
-    section Phase 3: Documentation & Refactoring
-    MacOS Build Fixes & Type Casting Debug       :done,    t5, 2026-06-29, 2026-07-03
-    System Overview & Architecture Architecture  :done,    t6, 2026-07-02, 2026-07-06
+    section Phase 3: Documentation
+    MacOS Build Fixes            :done, t5, 2026-06-29, 2026-07-03
+    System Overview              :done, t6, 2026-07-02, 2026-07-06
 
-    section Phase 4: Core POSIX Shim Layers
-    Thread Lifecycle (Join, Exit, Detach, Self)  :done,    t7, 2026-07-06, 2026-07-12
-    Mutex & Counting Semaphore Synchronization  :done,    t8, 2026-07-09, 2026-07-15
-    Timing Primitives (sleep, usleep)            :done,    t9, 2026-07-13, 2026-07-15
+    section Phase 4: POSIX Shims
+    Thread Lifecycle             :done, t7, 2026-07-06, 2026-07-12
+    Mutex & Semaphore Sync       :done, t8, 2026-07-09, 2026-07-15
+    Timing Primitives            :done, t9, 2026-07-13, 2026-07-15
 
-    section Phase 5: LwIP Stack & Driver
-    LwIP TCP/IP Stack Integration                :done,    t10, 2026-07-13, 2026-07-16
-    SMSC9118 Ethernet Driver & NVIC Interrupts   :done,    t11, 2026-07-15, 2026-07-17
+    section Phase 5: LwIP Stack
+    LwIP Stack Integration       :done, t10, 2026-07-13, 2026-07-16
+    SMSC9118 Driver & IRQ        :done, t11, 2026-07-15, 2026-07-17
 
-    section Phase 6: Sockets & Web Application
-    POSIX Socket Shim Wrapper Layers            :done,    t12, 2026-07-16, 2026-07-18
-    HTTP Web Server Demo Application             :done,    t13, 2026-07-17, 2026-07-19
+    section Phase 6: Web Server
+    POSIX Socket Layer           :done, t12, 2026-07-16, 2026-07-18
+    HTTP Web Server Demo         :done, t13, 2026-07-17, 2026-07-19
 ```
 
 ---
 
-## 2. Detailed Week-by-Week Milestone Breakdown
+## 2. Master Schedule Table
+
+| Task ID | Phase | Full Task Name | Start Date | End Date | Duration | Key Outputs / File References |
+| :---: | :--- | :--- | :---: | :---: | :---: | :--- |
+| **t1** | Phase 1 | Initial QEMU & FreeRTOS Environment Setup | 2026-06-08 | 2026-06-14 | 7 days | QEMU UART redirection in [`main.c`](file:///c:/Users/Alok%20Jain/Desktop/STM32/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/main.c) |
+| **t2** | Phase 1 | Basic POSIX Thread Translation Shim | 2026-06-11 | 2026-06-16 | 6 days | `pthread_create` mapping to `xTaskCreate` |
+| **t3** | Phase 2 | Research & Feasibility Study | 2026-06-15 | 2026-06-23 | 9 days | Evaluation of Cortex-M3 memory budget & POSIX subset |
+| **t4** | Phase 2 | Feasibility Report & Heatmap Creation | 2026-06-22 | 2026-06-26 | 5 days | Feasibility report and compatibility evaluation |
+| **t5** | Phase 3 | MacOS Build Fixes & Type Casting Debug | 2026-06-29 | 2026-07-03 | 5 days | Toolchain build fix & Makefile adjustments |
+| **t6** | Phase 3 | System Overview & Architecture Overview | 2026-07-02 | 2026-07-06 | 5 days | Architectural guide in [`SYSTEM_OVERVIEW.md`](file:///c:/Users/Alok%20Jain/Desktop/STM32/STM32-Simulated-Linux/SYSTEM_OVERVIEW.md) |
+| **t7** | Phase 4 | Thread Lifecycle (`pthread_join`, `exit`, `detach`, `self`) | 2026-07-06 | 2026-07-12 | 7 days | Thread registry & lifecycle management in [`main_blinky.c`](file:///c:/Users/Alok%20Jain/Desktop/STM32/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/main_blinky.c) |
+| **t8** | Phase 4 | Mutex & Counting Semaphore Synchronization | 2026-07-09 | 2026-07-15 | 7 days | `pthread_mutex_t` & custom counting semaphore `sem_t` |
+| **t9** | Phase 4 | Timing Primitives (`sleep`, `usleep`) | 2026-07-13 | 2026-07-15 | 3 days | Timing mapping to `vTaskDelay` ticks |
+| **t10** | Phase 5 | LwIP TCP/IP Stack Integration | 2026-07-13 | 2026-07-16 | 4 days | LwIP OS layer adaptation in [`sys_arch.c`](file:///c:/Users/Alok%20Jain/Desktop/STM32/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/sys_arch.c) |
+| **t11** | Phase 5 | SMSC9118 Ethernet Driver & NVIC Interrupts | 2026-07-15 | 2026-07-17 | 3 days | Hardware Ethernet driver in [`ethernetif.c`](file:///c:/Users/Alok%20Jain/Desktop/STM32/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/ethernetif.c) |
+| **t12** | Phase 6 | POSIX Socket Shim Wrapper Layers | 2026-07-16 | 2026-07-18 | 3 days | Socket API mapping (`socket`, `bind`, `listen`, `accept`) |
+| **t13** | Phase 6 | HTTP Web Server Demo Application | 2026-07-17 | 2026-07-19 | 3 days | Full POSIX web server listening on port 80/8080 |
+
+---
+
+## 3. Detailed Week-by-Week Breakdown
 
 ### Week 1 (June 8 - June 14, 2026): Initial Bootstrap & Threading Shim
 * **Focus**: Setting up the development sandbox and verifying that FreeRTOS runs correctly under QEMU emulation.
