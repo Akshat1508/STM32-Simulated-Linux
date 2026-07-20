@@ -26,7 +26,7 @@ gantt
     Feasibility Report           :done, t4, 2026-06-22, 2026-06-26
 
     section Phase 3: Documentation
-    MacOS Build Fixes            :done, t5, 2026-06-29, 2026-07-03
+    Build Fixes            :done, t5, 2026-06-29, 2026-07-03
     System Overview              :done, t6, 2026-07-02, 2026-07-06
 
     section Phase 4: POSIX Shims
@@ -53,7 +53,7 @@ gantt
 | **t2** | Phase 1 | Basic POSIX Thread Translation Shim | 2026-06-11 | 2026-06-16 | 6 days | `pthread_create` mapping to `xTaskCreate` |
 | **t3** | Phase 2 | Research & Feasibility Study | 2026-06-15 | 2026-06-23 | 9 days | Evaluation of Cortex-M3 memory budget & POSIX subset |
 | **t4** | Phase 2 | Feasibility Report & Heatmap Creation | 2026-06-22 | 2026-06-26 | 5 days | Feasibility report and compatibility evaluation |
-| **t5** | Phase 3 | MacOS Build Fixes & Type Casting Debug | 2026-06-29 | 2026-07-03 | 5 days | Toolchain build fix & Makefile adjustments |
+| **t5** | Phase 3 | Build Fixes & Type Casting Debug | 2026-06-29 | 2026-07-03 | 5 days | Toolchain build fix & Makefile adjustments |
 | **t6** | Phase 3 | System Overview & Architecture Overview | 2026-07-02 | 2026-07-06 | 5 days | Architectural guide in [`SYSTEM_OVERVIEW.md`](file:///c:/Users/Alok%20Jain/Desktop/STM32/STM32-Simulated-Linux/SYSTEM_OVERVIEW.md) |
 | **t7** | Phase 4 | Thread Lifecycle (`pthread_join`, `exit`, `detach`, `self`) | 2026-07-06 | 2026-07-12 | 7 days | Thread registry & lifecycle management in [`main_blinky.c`](file:///c:/Users/Alok%20Jain/Desktop/STM32/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/main_blinky.c) |
 | **t8** | Phase 4 | Mutex & Counting Semaphore Synchronization | 2026-07-09 | 2026-07-15 | 7 days | `pthread_mutex_t` & custom counting semaphore `sem_t` |
@@ -92,7 +92,7 @@ gantt
 * **Focus**: Addressing compiler compatibilities and documenting architecture.
 * **Key Tasks**:
   * Fixed type-casting constraints inside `pthread_create` to prevent toolchain warnings/failures.
-  * Adjusted compiler flags in the Makefile and resolved system definitions to support compiling the binary on macOS environments.
+  * Adjusted compiler flags in the Makefile and resolved system definitions to support compiling the binary.
   * Created [SYSTEM_OVERVIEW.md](file:///c:/Users/Alok%20Jain/Desktop/STM32/STM32-Simulated-Linux/SYSTEM_OVERVIEW.md) to serve as a comprehensive codebase map of the emulation setup, directory layouts, and execution pathways.
 
 ### Week 5 (July 6 - July 12, 2026): POSIX Shim Expansion

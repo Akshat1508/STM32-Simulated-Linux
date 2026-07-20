@@ -98,7 +98,7 @@ Here is a guide to the most important files you will interact with while develop
 ## 5. Development Lifecycle (How to Build & Run)
 
 ### Prerequisites
-To build and run this emulator configuration on macOS, you need:
+To build and run this emulator configuration, you need:
 1. **ARM Toolchain**: `arm-none-eabi-gcc` (can be installed via Homebrew `brew install osx-cross/arm/arm-none-eabi-gcc` or `arm-gcc-bin@10`).
 2. **QEMU System Emulator**: `qemu` (can be installed via `brew install qemu`).
 3. **Make Utility**: Standard GNU `make`.
