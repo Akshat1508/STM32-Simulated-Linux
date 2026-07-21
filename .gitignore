@@ -10,3 +10,5 @@ qemu_log.txt
 
 # Ignore specific output directories
 output/
+
+.DS_Store
