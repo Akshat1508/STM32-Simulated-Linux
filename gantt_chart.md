@@ -8,42 +8,7 @@ The timeline spans **01-06-2026 to 12-07-2026**, organized into 6 distinct phase
 
 ## 1. Gantt Chart Diagram
 
-```mermaid
-gantt
-    title STM32 Simulated Linux - 6-Week Development Timeline
-    dateFormat  YYYY-MM-DD
-    axisFormat  %d-%m
-    tickInterval 1w
-    weekday monday
-    todayMarker off
-
-    section Phase 1: Design & Feasibility
-    Literature Research          :done, t0, 2026-06-01, 2026-06-05
-    Feasibility Study            :done, t1, 2026-06-04, 2026-06-09
-    Feasibility Report & Heatmap :done, t2, 2026-06-08, 2026-06-12
-
-    section Phase 2: QEMU & FreeRTOS Setup
-    Initial QEMU & FreeRTOS Setup:done, t3, 2026-06-11, 2026-06-17
-    Memory Layout & UART Redir   :done, t4, 2026-06-15, 2026-06-19
-
-    section Phase 3: Thread Shim & Docs
-    Basic POSIX Thread Shim      :done, t5, 2026-06-22, 2026-06-26
-    Build Fixes & Debugging      :done, t6, 2026-06-23, 2026-06-27
-    System Overview Doc          :done, t7, 2026-06-25, 2026-06-28
-
-    section Phase 4: Core POSIX Shims
-    Thread Lifecycle             :done, t8, 2026-06-29, 2026-07-03
-    Mutex & Semaphore Sync       :done, t9, 2026-07-01, 2026-07-05
-    Timing Primitives            :done, t10, 2026-07-03, 2026-07-05
-
-    section Phase 5: LwIP Stack & Driver
-    LwIP Stack Integration       :done, t11, 2026-07-06, 2026-07-09
-    SMSC9118 Driver & IRQ        :done, t12, 2026-07-08, 2026-07-10
-
-    section Phase 6: Sockets & Web App
-    POSIX Socket Layer           :done, t13, 2026-07-09, 2026-07-11
-    HTTP Web Server Demo         :done, t14, 2026-07-10, 2026-07-12
-```
+![Gantt Chart](gantt chart.png)
 
 ---
 
