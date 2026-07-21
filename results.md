@@ -19,7 +19,7 @@ The **STM32 Simulated Linux** project successfully constructs a lightweight **PO
 
 ## 2. Gantt Chart Diagram
 
-![Gantt Chart](gantt chart.png)
+![Gantt Chart](gantt_chart.png)
 
 ---
 

@@ -8,7 +8,7 @@ The timeline spans **01-06-2026 to 12-07-2026**, organized into 6 distinct phase
 
 ## 1. Gantt Chart Diagram
 
-![Gantt Chart](gantt chart.png)
+![Gantt Chart](gantt_chart.png)
 
 ---
 
