@@ -98,11 +98,12 @@ SOURCE_FILES += ./printf-stdarg.c
 #
 # Lightweight IP (LwIP) Stack
 #
-LWIP_DIR = $(FREERTOS_ROOT)/../FreeRTOS-Plus/ThirdParty/lwip
+LWIP_DIR = $(FREERTOS_ROOT)/Demo/Common/ethernet/lwip-1.4.0
 LWIP_SRC = $(LWIP_DIR)/src
 ETHERNET_DRIVER_DIR = $(FREERTOS_ROOT)/../FreeRTOS-Plus/Source/FreeRTOS-Plus-TCP/source/portable/NetworkInterface/MPS2_AN385/ether_lan9118
 
 INCLUDE_DIRS += -I$(LWIP_SRC)/include \
+                -I$(LWIP_SRC)/include/ipv4 \
                 -I$(LWIP_SRC)/include/compat/posix \
                 -I$(ETHERNET_DRIVER_DIR)
 
@@ -116,8 +117,6 @@ VPATH += $(LWIP_SRC)/core \
 SOURCE_FILES += $(LWIP_SRC)/core/init.c \
                 $(LWIP_SRC)/core/def.c \
                 $(LWIP_SRC)/core/dns.c \
-                $(LWIP_SRC)/core/inet_chksum.c \
-                $(LWIP_SRC)/core/ip.c \
                 $(LWIP_SRC)/core/mem.c \
                 $(LWIP_SRC)/core/memp.c \
                 $(LWIP_SRC)/core/netif.c \
@@ -128,21 +127,20 @@ SOURCE_FILES += $(LWIP_SRC)/core/init.c \
                 $(LWIP_SRC)/core/tcp.c \
                 $(LWIP_SRC)/core/tcp_in.c \
                 $(LWIP_SRC)/core/tcp_out.c \
-                $(LWIP_SRC)/core/timeouts.c \
+                $(LWIP_SRC)/core/lwip_timers.c \
                 $(LWIP_SRC)/core/udp.c \
                 $(LWIP_SRC)/core/ipv4/autoip.c \
-                $(LWIP_SRC)/core/ipv4/dhcp.c \
-                $(LWIP_SRC)/core/ipv4/etharp.c \
                 $(LWIP_SRC)/core/ipv4/icmp.c \
                 $(LWIP_SRC)/core/ipv4/igmp.c \
-                $(LWIP_SRC)/core/ipv4/ip4.c \
-                $(LWIP_SRC)/core/ipv4/ip4_addr.c \
-                $(LWIP_SRC)/core/ipv4/ip4_frag.c \
-                $(LWIP_SRC)/netif/ethernet.c \
+                $(LWIP_SRC)/core/ipv4/inet.c \
+                $(LWIP_SRC)/core/ipv4/inet_chksum.c \
+                $(LWIP_SRC)/core/ipv4/ip.c \
+                $(LWIP_SRC)/core/ipv4/ip_addr.c \
+                $(LWIP_SRC)/core/ipv4/ip_frag.c \
+                $(LWIP_SRC)/netif/etharp.c \
                 $(LWIP_SRC)/api/api_lib.c \
                 $(LWIP_SRC)/api/api_msg.c \
                 $(LWIP_SRC)/api/err.c \
-                $(LWIP_SRC)/api/if_api.c \
                 $(LWIP_SRC)/api/netbuf.c \
                 $(LWIP_SRC)/api/netdb.c \
                 $(LWIP_SRC)/api/netifapi.c \

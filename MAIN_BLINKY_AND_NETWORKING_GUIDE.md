@@ -420,13 +420,13 @@
   * Sets cross-compiler `arm-none-eabi-gcc`.
   * Sets CFLAGS: `-mthumb -mcpu=cortex-m3 -ffreestanding -g3 -Os -ffunction-sections -fdata-sections`.
   * Sets LDFLAGS: `-T ./mps2_m3.ld -specs=nano.specs -specs=nosys.specs`.
-  * Collects source files across FreeRTOS Core (`tasks.c`, `queue.c`, `heap_4.c`, `port.c`), LwIP Stack (`init.c`, `sockets.c`, `tcpip.c`), Driver (`smsc9220_eth_drv.c`), and Application (`main.c`, `main_blinky.c`, `sys_arch.c`, `ethernetif.c`).
-  * Compiles `.c` files to `.o` object files in `./output/` directory and performs final linking.
+  * Collects source files across FreeRTOS Core (`tasks.c`, `queue.c`, `heap_4.c`, `port.c`), LwIP 1.4.0 Stack (`init.c`, `sockets.c`, `tcpip.c`, `ip.c`, `etharp.c`), Driver (`smsc9220_eth_drv.c`), and Application (`main.c`, `main_blinky.c`, `sys_arch.c`, `ethernetif.c`).
+  * Compiles `.c` files to `.o` object files in `./output/` directory and performs final linking into `RTOSDemo.out`.
 
 ---
 
 ## 7. `startup_gcc.c` (Vector Table & Exception Handlers)
-* **Path**: [startup_gcc.c](file:///c:/Users/Alok%20Jain/Desktop/STM32/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/build/gcc/startup_gcc.c)
+* **Path**: [startup_gcc.c](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/build/gcc/startup_gcc.c)
 * **Detailed Working**: Contains hardware vector table and reset handlers:
   * `isr_vector[]`: Placed in `.isr_vector` section. Contains Initial Stack Pointer (`&_estack`), `Reset_Handler`, FreeRTOS handlers (`vPortSVCHandler`, `xPortPendSVHandler`, `xPortSysTickHandler`), and hardware IRQs.
   * **Ethernet Binding**: Position 78 (IRQ 13) is bound to `EthernetISR`.
@@ -434,10 +434,10 @@
 
 ---
 
-## 8. `FreeRTOS-Plus/ThirdParty/lwip` (LwIP Stack Source Tree)
-* **Path**: `FreeRTOS-Plus/ThirdParty/lwip`
-* **Detailed Working**: Standard LwIP source codebase directory structure:
-  * `src/core/`: Contains core protocol implementations (IPv4 routing `ip4.c`, TCP state machine `tcp.c`, `tcp_in.c`, `tcp_out.c`, UDP processing `udp.c`, memory pools `mem.c`, `memp.c`, packet buffers `pbuf.c`).
+## 8. `FreeRTOS/Demo/Common/ethernet/lwip-1.4.0` (LwIP Stack Source Tree)
+* **Path**: `FreeRTOS/Demo/Common/ethernet/lwip-1.4.0`
+* **Detailed Working**: Embedded LwIP 1.4.0 source codebase directory structure:
+  * `src/core/`: Contains core protocol implementations (`ip.c`, `tcp.c`, `tcp_in.c`, `tcp_out.c`, `udp.c`, `mem.c`, `memp.c`, `pbuf.c`, `lwip_timers.c`).
   * `src/api/`: Contains sequential and socket API implementations (`sockets.c`, `api_lib.c`, `api_msg.c`, `tcpip.c`).
-  * `src/netif/`: Network interface implementations (`ethernet.c`, `etharp.c`).
-  * `src/include/`: Standard headers for LwIP stack protocols and APIs.
+  * `src/netif/`: Network interface implementations (`etharp.c`, `ethernetif.c`).
+  * `src/include/`: Standard headers for LwIP stack protocols and APIs (`lwip/sockets.h`, `lwip/ip_addr.h`, `arch/perf.h`).

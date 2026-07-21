@@ -1,0 +1,28 @@
+name: Build STM32 Simulated Linux
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build QEMU ARM Kernel & POSIX Layer
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install ARM GCC Toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-none-eabi make
+
+      - name: Build Project with Make
+        run: |
+          cd FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/build/gcc
+          make

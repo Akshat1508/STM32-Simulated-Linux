@@ -8,6 +8,7 @@
 #include "lwip/sockets.h"
 #include "lwip/tcpip.h"
 #include "lwip/netif.h"
+#include <string.h>
 
 err_t ethernetif_init(struct netif *netif);
 
@@ -328,7 +329,7 @@ void* web_server_thread(void* arg) {
     // Initialize LwIP core stack
     tcpip_init(NULL, NULL);
     
-    ip4_addr_t ipaddr, netmask, gw;
+    ip_addr_t ipaddr, netmask, gw;
     IP4_ADDR(&ipaddr, 10, 0, 2, 15);
     IP4_ADDR(&netmask, 255, 255, 255, 0);
     IP4_ADDR(&gw, 10, 0, 2, 2);
