@@ -1,6 +1,5 @@
 # Ultra-Detailed Technical Codebase Documentation Report: STM32 Simulated Linux
-
-**Role**: Senior Technical Writer & Lead Embedded Systems Engineer  
+ 
 **Target Architecture**: ARM Cortex-M3 (MPS2 AN385 Emulator Model on QEMU)  
 **Target Core Frequency**: 25 MHz (SysTick Rate: 1000 Hz / 1 ms resolution)  
 **Kernel & Stacks**: FreeRTOS Real-Time Kernel (V202212.00), LwIP POSIX TCP/IP Stack, Custom `pthread` Compatibility Shim  
