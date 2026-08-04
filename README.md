@@ -32,7 +32,8 @@ A POSIX compatibility layer running on top of the **FreeRTOS** real-time kernel 
 * **`FreeRTOS-Plus/`**: Supplementary packages, including the Percepio TraceRecorder and LwIP TCP/IP stack.
 * **`FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/`**: Active target application folder.
   * **[main.c](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/main.c)**: Redirection of `stdout` stream to UART0 register to pipe prints directly to the QEMU terminal window.
-  * **[main_blinky.c](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/main_blinky.c)**: The POSIX compatibility layer shim, worker threads demo, and simulated HTTP web server.
+  * **[posix_shim.h](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.h)** & **[posix_shim.c](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c)**: Decoupled POSIX compatibility layer shim mapping POSIX threads, mutexes, counting semaphores, and timing to FreeRTOS primitives.
+  * **[main_blinky.c](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/main_blinky.c)**: Worker threads demo application and simulated HTTP web server.
   * **[lwipopts.h](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/lwipopts.h)**: Configuration settings for LwIP.
   * **[sys_arch.c](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/sys_arch.c)**: LwIP OS adaptation layer mapping LwIP threads/queues to FreeRTOS.
   * **[ethernetif.c](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/ethernetif.c)**: SMSC9118 Network controller driver for LwIP.

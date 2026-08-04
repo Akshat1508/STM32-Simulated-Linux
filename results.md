@@ -9,9 +9,9 @@ This document presents the full implementation results, memory footprint analysi
 The **STM32 Simulated Linux** project successfully constructs a lightweight **POSIX Compatibility Shim Layer** on top of the **FreeRTOS** real-time kernel, targeted for resource-constrained ARM Cortex-M microcontrollers running in **QEMU (MPS2 AN385 platform)**.
 
 ### Key Achieved Results:
-- **Code Footprint (`text`)**: **70.8 KB** (72,506 bytes), fitting within the tight **~70–80 KB** FLASH instruction budget.
+- **Code Footprint (`text`)**: **65.3 KB** (66,852 bytes), fitting well within the tight **~70–80 KB** FLASH instruction budget.
 - **Core Thread & App RAM Footprint**: **~80 KB** (16 KB FreeRTOS kernel + ~64 KB application thread working set).
-- **Expanded QEMU Target RAM (`bss` + `data`)**: **151.8 KB** static allocation (including a 100 KB FreeRTOS dynamic heap and 51.6 KB LwIP network packet buffers).
+- **Expanded QEMU Target RAM (`bss` + `data`)**: **152.0 KB** static allocation (including a 100 KB FreeRTOS dynamic heap and 51.8 KB LwIP network packet buffers).
 - **POSIX API Translation Layer**: 100% functional implementations for `pthread_create`, `pthread_join`, `pthread_exit`, `pthread_detach`, `pthread_self`, `pthread_mutex_*`, custom counting semaphores (`sem_*`), `sleep`/`usleep`, and LwIP-backed BSD Sockets (`socket`, `bind`, `listen`, `accept`, `read`, `write`, `close`).
 - **Demo HTTP Web Server**: Successfully boots and serves HTML content over simulated TCP/IP port 80/8080 inside QEMU.
 
@@ -33,11 +33,11 @@ The **STM32 Simulated Linux** project successfully constructs a lightweight **PO
 | **t3** | Phase 2 | Initial QEMU & FreeRTOS Environment Setup | FreeRTOS Kernel & QEMU MPS2 target setup |
 | **t4** | Phase 2 | Memory Layout & UART Console Redirection | Linker script `mps2_m3.ld` & UART bindings in [`main.c`](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/main.c) |
 | **t5** | Phase 3 | Basic POSIX Thread Translation Shim | `pthread_create` mapping to FreeRTOS `xTaskCreate` |
-| **t6** | Phase 3 | Build Fixes & Type Casting Debug | Toolchain cross-compilation fix & Makefile adjustments |
-| **t7** | Phase 3 | System Overview & Architecture Overview | Architectural documentation in [`SYSTEM_OVERVIEW.md`](SYSTEM_OVERVIEW.md) |
-| **t8** | Phase 4 | Thread Lifecycle (`pthread_join`, `exit`, `detach`, `self`) | Thread registry & lifecycle management in [`main_blinky.c`](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/main_blinky.c) |
-| **t9** | Phase 4 | Mutex & Counting Semaphore Synchronization | `pthread_mutex_t` & custom counting semaphore `sem_t` |
-| **t10** | Phase 4 | Timing Primitives (`sleep`, `usleep`) | Timing mapping to `vTaskDelay` scheduler ticks |
+| **t6** | Phase 3 | Build Fixes & Type Casting Debug | Toolchain cross-compilation fix & Makefile variable expansion (`$`) fixes |
+| **t7** | Phase 3 | System Overview & Architecture Overview | Architectural documentation in [`SYSTEM_OVERVIEW.md`](misc/SYSTEM_OVERVIEW.md) |
+| **t8** | Phase 4 | Thread Lifecycle (`pthread_join`, `exit`, `detach`, `self`) | Decoupled thread registry & lifecycle management in [`posix_shim.c`](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c) & [`posix_shim.h`](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.h) |
+| **t9** | Phase 4 | Mutex & Counting Semaphore Synchronization | `pthread_mutex_t` & custom counting semaphore `sem_t` in [`posix_shim.c`](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c) |
+| **t10** | Phase 4 | Timing Primitives (`sleep`, `usleep`) | Timing mapping to `vTaskDelay` scheduler ticks in [`posix_shim.c`](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c) |
 | **t11** | Phase 5 | LwIP TCP/IP Stack Integration | LwIP OS layer adaptation in [`sys_arch.c`](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/sys_arch.c) |
 | **t12** | Phase 5 | SMSC9118 Ethernet Driver & NVIC Interrupts | Hardware Ethernet driver in [`ethernetif.c`](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/ethernetif.c) |
 | **t13** | Phase 6 | POSIX Socket Shim Wrapper Layers | BSD Socket APIs (`socket`, `bind`, `listen`, `accept`) |
@@ -67,13 +67,14 @@ The **STM32 Simulated Linux** project successfully constructs a lightweight **PO
 * **Focus**: Developing the core `pthread_create` translation shim, fixing build environment issues, and documenting architecture.
 * **Key Tasks & Deliverables**:
   * Designed the initial lightweight `pthread_create` translation mapping POSIX thread requests directly to FreeRTOS `xTaskCreate` calls.
-  * Fixed type-casting constraints inside `pthread_create` and updated Makefile compiler flags to resolve cross-platform build errors.
-  * Created [SYSTEM_OVERVIEW.md](SYSTEM_OVERVIEW.md) as a comprehensive codebase map of execution pathways and directory structures.
+  * Fixed type-casting constraints inside `pthread_create` and updated Makefile compiler flags and variable expansion syntax (`$` on source path variables) to resolve cross-platform build errors.
+  * Created [SYSTEM_OVERVIEW.md](misc/SYSTEM_OVERVIEW.md) as a comprehensive codebase map of execution pathways and directory structures.
 
 ### Phase 4: Core POSIX Shim Layers (29-06 to 05-07-2026)
-* **Focus**: Implementing thread lifecycle management, synchronization locks, and timing primitives.
+* **Focus**: Implementing thread lifecycle management, synchronization locks, and timing primitives in a dedicated shim layer.
 * **Key Tasks & Deliverables**:
-  * Implemented thread lifecycle control functions in [main_blinky.c](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/main_blinky.c) (`pthread_join`, `pthread_exit`, `pthread_detach`, `pthread_self`).
+  * Decoupled POSIX compatibility layer into [posix_shim.h](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.h) and [posix_shim.c](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c) separate from application logic in [main_blinky.c](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/main_blinky.c).
+  * Implemented thread lifecycle control functions (`pthread_join`, `pthread_exit`, `pthread_detach`, `pthread_self`).
   * Integrated Mutual Exclusion locks (`pthread_mutex_t`) mapping directly to FreeRTOS Mutex primitives (`xSemaphoreCreateMutex`).
   * Developed a counting semaphore library (`sem_t`) to support inter-thread signaling without native Unix headers.
   * Mapped POSIX timing delays (`sleep`, `usleep`) to FreeRTOS scheduler ticks (`vTaskDelay`).
@@ -100,18 +101,18 @@ The **STM32 Simulated Linux** project successfully constructs a lightweight **PO
 
 ```text
    text       data        bss        dec        hex    filename
-  72506        228     155245     227979      37a8b    FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/build/gcc/output/RTOSDemo.out
+  66852        226     155442     222520      36538    FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/build/gcc/output/RTOSDemo.out
 ```
 
 ### Resource Allocation Summary Table
 
 | Category | Measured Value | Allocation Purpose & Constraint Alignment |
 | :--- | :---: | :--- |
-| **FLASH Program Memory (`text`)** | **70.8 KB** (72,506 B) | Program code instructions. Fits within the target **~70–80 KB** FLASH constraint. |
-| **Initialized Data (`data`)** | **0.2 KB** (228 B) | Global initialized variables in RAM. |
+| **FLASH Program Memory (`text`)** | **65.3 KB** (66,852 B) | Program code instructions. Fits within the target **~70–80 KB** FLASH constraint. |
+| **Initialized Data (`data`)** | **0.2 KB** (226 B) | Global initialized variables in RAM. |
 | **FreeRTOS Dynamic Heap (`bss`)** | **100.0 KB** (102,400 B) | Heap buffer (`configTOTAL_HEAP_SIZE`) for dynamic thread stack allocations and semaphores. |
-| **LwIP & Driver Memory (`bss`)** | **51.6 KB** (52,845 B) | LwIP TCP/IP packet buffers, socket tables, and UART DMA buffers. |
-| **Total Static RAM** | **151.8 KB** (155,473 B) | Total static RAM budget inside QEMU. |
+| **LwIP & Driver Memory (`bss`)** | **51.8 KB** (53,042 B) | LwIP TCP/IP packet buffers, socket tables, and UART DMA buffers. |
+| **Total Static RAM** | **152.0 KB** (155,668 B) | Total static RAM budget inside QEMU. |
 
 ---
 

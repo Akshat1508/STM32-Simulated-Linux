@@ -70,16 +70,16 @@ Dynamic memory in FreeRTOS is isolated from standard C `malloc`/`free` calls to 
 ## 2. Synchronization & Concurrency: POSIX Compatibility Layer
 
 ### 2.1 Theoretical Architecture of the `pthread` Wrapper
-Standard embedded C programs written for FreeRTOS use non-portable native kernel calls like `xTaskCreate()`, `xSemaphoreTake()`, and `vTaskDelay()`. To create an environment simulating POSIX-compliant Linux execution, a **POSIX Shim Abstraction Layer** was designed in `main_blinky.c`.
+Standard embedded C programs written for FreeRTOS use non-portable native kernel calls like `xTaskCreate()`, `xSemaphoreTake()`, and `vTaskDelay()`. To create an environment simulating POSIX-compliant Linux execution, a **POSIX Shim Abstraction Layer** was designed in `posix_shim.c` and `posix_shim.h`.
 
 ```
-           POSIX Application Code (e.g. web_server_thread)
+           POSIX Application Code (e.g. web_server_thread in main_blinky.c)
        +-------------------------------------------------------+
        | pthread_create() | pthread_mutex_lock() | sem_wait()  |
        +-------------------------------------------------------+
                                   |
                                   v
-                POSIX Compatibility Layer (main_blinky.c)
+              POSIX Compatibility Layer (posix_shim.c / .h)
        +-------------------------------------------------------+
        | Maps POSIX handles to posix_thread_t and FreeRTOS     |
        | Mutex/Semaphore primitives with dynamic tracking      |

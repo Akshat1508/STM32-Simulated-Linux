@@ -131,10 +131,10 @@ def build_results_pdf(filename="results.pdf"):
     exec_summary_text = (
         "The <b>STM32 Simulated Linux</b> project constructs a lightweight POSIX Compatibility Shim Layer on top of "
         "FreeRTOS for ARM Cortex-M microcontrollers running in QEMU (MPS2 AN385 platform). Key empirical achievements:<br/>"
-        "• <b>FLASH Program Code Footprint (text)</b>: <b>70.8 KB</b> (72,506 B), fitting under the 70–80 KB constraint.<br/>"
+        "• <b>FLASH Program Code Footprint (text)</b>: <b>65.3 KB</b> (66,852 B), fitting well under the 70–80 KB constraint.<br/>"
         "• <b>Core RTOS & Thread RAM Footprint</b>: <b>~80 KB</b> (16 KB FreeRTOS kernel + 64 KB application thread working set).<br/>"
-        "• <b>QEMU Target Static RAM (bss + data)</b>: <b>151.8 KB</b> (including 100 KB heap & 51.6 KB LwIP network buffers).<br/>"
-        "• <b>POSIX Compatibility</b>: 100% functional implementations for pthread_create, join, exit, detach, self, mutexes, semaphores, timing delays, and LwIP BSD sockets."
+        "• <b>QEMU Target Static RAM (bss + data)</b>: <b>152.0 KB</b> (including 100 KB heap & 51.8 KB LwIP network buffers).<br/>"
+        "• <b>POSIX Compatibility Layer</b>: Decoupled into posix_shim.c / posix_shim.h with 100% functional implementations for pthread_create, join, exit, detach, self, mutexes, semaphores, timing delays, and LwIP BSD sockets."
     )
     story.append(Paragraph(exec_summary_text, body_style))
 
@@ -237,11 +237,11 @@ def build_results_pdf(filename="results.pdf"):
         ("t3", "Phase 2", "Initial QEMU & FreeRTOS Setup", "FreeRTOS Kernel & QEMU MPS2 target setup"),
         ("t4", "Phase 2", "Memory Layout & UART Redir", "Linker script mps2_m3.ld & main.c UART init"),
         ("t5", "Phase 3", "Basic POSIX Thread Translation Shim", "pthread_create mapping to xTaskCreate"),
-        ("t6", "Phase 3", "Build Fixes & Debugging", "Toolchain cross-compilation fix"),
+        ("t6", "Phase 3", "Build Fixes & Debugging", "Toolchain cross-compilation & Makefile ($) expansion fixes"),
         ("t7", "Phase 3", "System Overview & Architecture", "Architectural guide SYSTEM_OVERVIEW.md"),
-        ("t8", "Phase 4", "Thread Lifecycle (join, exit, detach)", "Thread registry & lifecycle in main_blinky.c"),
-        ("t9", "Phase 4", "Mutex & Semaphore Synchronization", "pthread_mutex_t & counting sem_t"),
-        ("t10", "Phase 4", "Timing Primitives (sleep, usleep)", "Delay mapping to vTaskDelay ticks"),
+        ("t8", "Phase 4", "Thread Lifecycle (join, exit, detach)", "Thread registry & lifecycle in posix_shim.c / .h"),
+        ("t9", "Phase 4", "Mutex & Semaphore Synchronization", "pthread_mutex_t & counting sem_t in posix_shim.c"),
+        ("t10", "Phase 4", "Timing Primitives (sleep, usleep)", "Delay mapping to vTaskDelay ticks in posix_shim.c"),
         ("t11", "Phase 5", "LwIP TCP/IP Stack Integration", "LwIP OS layer adaptation in sys_arch.c"),
         ("t12", "Phase 5", "SMSC9118 Driver & NVIC IRQ", "Ethernet driver in ethernetif.c"),
         ("t13", "Phase 6", "POSIX Socket Shim Wrapper Layers", "BSD Socket APIs (socket, bind, listen)"),
@@ -290,13 +290,14 @@ def build_results_pdf(filename="results.pdf"):
         ]),
         ("Phase 3: POSIX Thread Shim, Build Fixes & System Overview (22-06 to 28-06-2026)", [
             "Designed lightweight pthread_create translation mapping POSIX requests directly to FreeRTOS xTaskCreate.",
-            "Fixed type-casting constraints inside pthread_create and updated Makefile compiler flags.",
+            "Fixed type-casting constraints inside pthread_create and updated Makefile compiler flags & variable expansion syntax ($ on source lists).",
             "Created SYSTEM_OVERVIEW.md detailing architectural layout and execution pathways."
         ]),
         ("Phase 4: Core POSIX Shim Layers (29-06 to 05-07-2026)", [
-            "Implemented thread lifecycle APIs in main_blinky.c (pthread_join, exit, detach, self).",
-            "Mapped pthread_mutex_t to FreeRTOS mutexes and built custom sem_t counting semaphores.",
-            "Integrated timing delay wrappers (sleep, usleep) mapped to FreeRTOS scheduler ticks."
+            "Decoupled POSIX compatibility layer into posix_shim.h and posix_shim.c separate from main_blinky.c.",
+            "Implemented thread lifecycle APIs in posix_shim.c (pthread_join, exit, detach, self).",
+            "Mapped pthread_mutex_t to FreeRTOS mutexes and built custom sem_t counting semaphores in posix_shim.c.",
+            "Integrated timing delay wrappers (sleep, usleep) mapped to FreeRTOS scheduler ticks in posix_shim.c."
         ]),
         ("Phase 5: LwIP Stack & Driver (06-07 to 10-07-2026)", [
             "Integrated LwIP TCP/IP stack with custom memory configuration tuned in lwipopts.h.",
@@ -320,7 +321,7 @@ def build_results_pdf(filename="results.pdf"):
     # Section 5: Memory Analysis & Allocation Summary
     story.append(Paragraph("5. Empirical Results & Memory Footprint Analysis", heading2_style))
     
-    size_log = "   text       data        bss        dec        hex    filename\n  72506        228     155245     227979      37a8b    RTOSDemo.out"
+    size_log = "   text       data        bss        dec        hex    filename\n  66852        226     155442     222520      36538    RTOSDemo.out"
     story.append(Preformatted(size_log, code_block_style))
 
     mem_table_data = [
@@ -331,12 +332,12 @@ def build_results_pdf(filename="results.pdf"):
         ],
         [
             Paragraph("FLASH Program Code (text)", table_cell_style),
-            Paragraph("70.8 KB (72,506 B)", table_cell_center),
+            Paragraph("65.3 KB (66,852 B)", table_cell_center),
             Paragraph("Code instructions. Fits within target ~70-80 KB FLASH constraint.", table_cell_style)
         ],
         [
             Paragraph("Initialized Data (data)", table_cell_style),
-            Paragraph("0.2 KB (228 B)", table_cell_center),
+            Paragraph("0.2 KB (226 B)", table_cell_center),
             Paragraph("Global initialized static variables.", table_cell_style)
         ],
         [
@@ -346,12 +347,12 @@ def build_results_pdf(filename="results.pdf"):
         ],
         [
             Paragraph("LwIP & Driver Memory (bss)", table_cell_style),
-            Paragraph("51.6 KB (52,845 B)", table_cell_center),
+            Paragraph("51.8 KB (53,042 B)", table_cell_center),
             Paragraph("LwIP TCP/IP packet buffers & hardware DMA buffers.", table_cell_style)
         ],
         [
             Paragraph("Total Static RAM", table_cell_style),
-            Paragraph("151.8 KB (155,473 B)", table_cell_center),
+            Paragraph("152.0 KB (155,668 B)", table_cell_center),
             Paragraph("Total static RAM budget inside QEMU emulator.", table_cell_style)
         ]
     ]

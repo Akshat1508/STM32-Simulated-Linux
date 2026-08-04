@@ -50,20 +50,20 @@ Located in [main.c](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/main.c):
 3. **`printf` Binding (`__write` or `_uart_putc`)**: Overrides the standard C library's standard output stream to feed bytes into the UART data register, redirecting outputs straight to the QEMU terminal window.
 4. **Blinky vs. Full Demo**: If `mainCREATE_SIMPLE_BLINKY_DEMO_ONLY` is defined as `1`, it boots `main_blinky()`. Otherwise, it routes to `main_full()`.
 
-### B. The POSIX Shim Layer (`main_blinky.c`)
-Located in [main_blinky.c](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/main_blinky.c):
-Instead of including the heavyweight `<pthread.h>`, we define a lightweight compatibility interface.
+### B. The POSIX Shim Layer (`posix_shim.c` & `posix_shim.h`)
+Located in [posix_shim.h](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.h) and [posix_shim.c](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c):
+Instead of including heavyweight Unix headers, `posix_shim.h` defines a lightweight compatibility interface exposing `sem_t` and POSIX function prototypes, mapping them to FreeRTOS.
 
-* **`struct thread_args`**: Wraps the target function pointer `start_routine` and its argument `arg` so they can be securely passed through FreeRTOS's task creation utility.
-* **`posix_thread_wrapper`**: A FreeRTOS task function wrapper. It extracts the routine arguments, executes the Linux application routine, and cleans up after completion by calling `vTaskDelete(NULL)`.
+* **`struct posix_thread`**: Internal thread registry node holding the target function pointer `start_routine`, argument `arg`, return value pointer `retval`, join binary semaphore `join_sem`, and detach flag `detached`.
+* **`posix_thread_wrapper`**: A FreeRTOS task function wrapper. It extracts the routine arguments, executes the Linux application routine, and cleans up after completion by calling `pthread_exit(retval)`.
 * **`pthread_create`**:
   ```c
-  int pthread_create(pthread_t *thread, const void *attr, void *(*start_routine) (void *), void *arg)
+  int pthread_create(pthread_t *thread, const pthread_attr_t *attr, void *(*start_routine) (void *), void *arg)
   ```
-  Translates the POSIX thread creation request into a FreeRTOS `xTaskCreate` call with a predefined stack size (1024 words) and priority (`tskIDLE_PRIORITY + 1`).
+  Translates POSIX thread creation requests into FreeRTOS `xTaskCreate` calls with a predefined stack size (1024 words) and priority (`tskIDLE_PRIORITY + 1`).
 
 ### C. The Simulated Linux Application (`main_blinky.c`)
-* **`my_linux_application`**: A standard POSIX-signature function (`void* func(void*)`). It simulates a simple user-space thread executing a continuous loop, outputting print logs, and sleeping using a translated scheduler delay (`vTaskDelay(pdMS_TO_TICKS(1000))`).
+* **`main_posix_app`**: The application entry thread spawned from `main_blinky()`. It initializes mutexes and semaphores, creates worker threads (`worker_thread_mutex`, `worker_thread_semaphore`) and the POSIX HTTP web server thread (`web_server_thread`), waits for their completion using `pthread_join()`, and verifies thread synchronization.
 
 ---
 
@@ -71,12 +71,14 @@ Instead of including the heavyweight `<pthread.h>`, we define a lightweight comp
 
 Here is a guide to the most important files you will interact with while developing this project:
 
-### FreeRTOS Demo Environment
-* **[main.c](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/main.c)**:
+### FreeRTOS Demo & POSIX Shim Environment
+* **[main.c](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/main.c)**:
   Handles hardware setup, overrides standard memory allocation calls (`malloc`), and initializes console output via UART.
-* **[main_blinky.c](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/main_blinky.c)**:
-  Contains the POSIX compatibility layer code, thread mappings, and your active application code.
-* **[FreeRTOSConfig.h](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/FreeRTOSConfig.h)**:
+* **[posix_shim.h](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.h)** & **[posix_shim.c](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c)**:
+  Decoupled POSIX compatibility translation layer implementing `pthread_*`, `pthread_mutex_*`, `sem_*`, `sleep`, and `usleep` over FreeRTOS kernel primitives.
+* **[main_blinky.c](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/main_blinky.c)**:
+  Contains the worker threads demo, POSIX web server implementation, and `main_blinky()` entry point.
+* **[FreeRTOSConfig.h](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/FreeRTOSConfig.h)**:
   Contains core kernel configurations, such as:
   * CPU frequency (`configCPU_CLOCK_HZ`)
   * Scheduler tick rate (`configTICK_RATE_HZ`)
@@ -84,8 +86,8 @@ Here is a guide to the most important files you will interact with while develop
   * Enable/disable hook functions (Idle hook, stack overflow hooks)
 
 ### Tooling and Build Chain
-* **[Makefile](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/build/gcc/Makefile)**:
-  Defines compile flags, dependencies, and target outputs. It compiles using `arm-none-eabi-gcc` and links source objects into `RTOSDemo.out`.
+* **[Makefile](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/build/gcc/Makefile)**:
+  Defines compile flags, dependencies, source lists (with proper `$` variable expansion), and target outputs. Compiles using `arm-none-eabi-gcc` into `RTOSDemo.out`.
 * **[mps2_m3.ld](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/build/gcc/mps2_m3.ld)**:
   The linker script for the Cortex-M3 MPS2 emulator board. It allocates memory regions:
   * **FLASH** (instruction space): starts at `0x00000000`, size `4096K`

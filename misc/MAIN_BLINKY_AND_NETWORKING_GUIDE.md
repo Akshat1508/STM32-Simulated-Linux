@@ -1,13 +1,13 @@
-# Comprehensive Architectural Guide: `main_blinky.c` & Supporting Subsystems
+# Comprehensive Architectural Guide: POSIX Shim (`posix_shim.c`), `main_blinky.c` & Supporting Subsystems
 
 **Target Environment**: STM32 Simulated Linux on ARM Cortex-M3 (MPS2 AN385 / QEMU)  
-**Core Technologies**: FreeRTOS Kernel V202212.00, Custom POSIX Abstraction Shim, LwIP TCP/IP Stack  
+**Core Technologies**: FreeRTOS Kernel V202212.00, Custom POSIX Abstraction Shim (`posix_shim.c`), LwIP TCP/IP Stack  
 
 ---
 
-# Section 1: Detailed Analysis of ALL Functions in `main_blinky.c`
+# Section 1: Detailed Analysis of ALL Functions in `posix_shim.c` & `main_blinky.c`
 
-`main_blinky.c` implements the **POSIX Compatibility Shim Layer** on top of FreeRTOS, global thread tracking data structures, application worker tasks, and an LwIP POSIX socket HTTP web server.
+The **POSIX Compatibility Shim Layer** is encapsulated in `posix_shim.c` (with public header `posix_shim.h`) on top of FreeRTOS, managing global thread tracking data structures, mutexes, semaphores, and timing. Application worker tasks, thread verification routines, and the LwIP POSIX socket HTTP web server reside in `main_blinky.c`.
 
 ---
 
