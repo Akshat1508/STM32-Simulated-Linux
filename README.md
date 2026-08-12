@@ -1,47 +1,57 @@
 # STM32 Simulated Linux
 
-A POSIX compatibility layer running on top of the **FreeRTOS** real-time kernel to simulate a Linux execution environment on resource-constrained microcontrollers (like STM32 / ARM Cortex-M platforms). It compiles using `arm-none-eabi-gcc` and executes inside the **QEMU Emulator** (Cortex-M3 MPS2 AN385 platform).
+A POSIX compatibility layer running on top of the **FreeRTOS** real-time kernel and **LwIP** TCP/IP stack to simulate a Linux execution environment on resource-constrained microcontrollers (such as STM32 / ARM Cortex-M platforms). It cross-compiles using `arm-none-eabi-gcc` and executes inside the **QEMU Emulator** (Cortex-M3 MPS2 AN385 platform).
 
 ---
 
-## Key Capabilities & Features
+## 🎯 Ultimate Project Goal
 
-### 1. Thread & Lifecycle Management (`pthread`)
-* **Thread Creation**: `pthread_create` translates POSIX thread requests into FreeRTOS `xTaskCreate` calls. Dynamic memory allocations (`pvPortMalloc`/`vPortFree`) are used to safely pass thread routines and parameters.
-* **Registry & Coordination**: Thread structures are tracked dynamically in a thread-safe registry (`g_thread_list`).
-* **POSIX Compliance**: Fully supports `pthread_join` (blocking wait for a thread's completion with return value extraction), `pthread_exit` (for self-termination), `pthread_detach` (for resource reclamation of unjoined threads), and `pthread_self` (to query thread identities).
+The primary vision of this project is to construct a **lightweight, POSIX-compliant environment on ARM Cortex-M microcontrollers** without requiring a Hardware Memory Management Unit (MMU) or a heavy Linux kernel image. 
 
-### 2. Synchronization Primitives
-* **POSIX Mutexes (`pthread_mutex_t`)**: Maps standard locking APIs (`pthread_mutex_init`, `pthread_mutex_lock`, `pthread_mutex_unlock`, and `pthread_mutex_destroy`) directly to FreeRTOS Mutex Primitives for thread safety and race-condition prevention.
-* **Custom Semaphores (`sem_t`)**: Implements counting semaphores (`sem_init`, `sem_wait`, `sem_post`, `sem_destroy`) to support inter-thread signaling, compensating for the lack of `<semaphore.h>` in standard newlib headers.
-
-### 3. Compliant Timing & Delays
-* Maps POSIX `sleep` (seconds) and `usleep` (microseconds) delays directly to FreeRTOS tick counts (`vTaskDelay`).
-
-### 4. Networking & POSIX Sockets
-* **LwIP Integration**: Integrates the lightweight LwIP TCP/IP stack running with full OS support (`NO_SYS = 0`). Memory footprint and buffers are optimized in `lwipopts.h` to fit inside the virtual STM32's constraints.
-* **POSIX Socket Shim**: Maps standard Linux socket calls (`socket`, `bind`, `listen`, `accept`, `read`, `write`, `close`) directly to LwIP's built-in socket API.
-* **Ethernet Driver Interface**: Bridges network interfaces in QEMU via a custom `ethernetif.c` driver mapping to the emulated SMSC9118 (LAN9118) Ethernet controller.
-* **Interrupt-Driven Networking**: Configures NVIC IRQ 13 (Ethernet Interrupt) to handle incoming packet buffers asynchronously via a dedicated receiver task.
+By translating standard UNIX/Linux system calls into native real-time OS primitives and embedded network stacks, developers can write, port, and execute standard multi-threaded C applications, synchronization patterns, and network server daemons directly on bare-metal microcontroller hardware or QEMU.
 
 ---
 
-## Project Structure
+## 🚀 Key Achievements So Far
+
+* **POSIX Thread Lifecycle Management**: Fully operational POSIX thread creation (`pthread_create`), joining (`pthread_join`), self-termination (`pthread_exit`), thread detaching (`pthread_detach`), and thread identity querying (`pthread_self`), backed by a thread-safe global task registry (`g_thread_list`).
+* **Synchronization Primitives**: Integrated POSIX recursive/standard mutual exclusion locks (`pthread_mutex_*`) and a custom counting semaphore library (`sem_*`) supporting thread synchronization and race-condition prevention.
+* **Compliant Delays & Timing**: Mapped POSIX timing delays (`sleep`, `usleep`) directly to FreeRTOS kernel scheduler ticks (`vTaskDelay`).
+* **BSD Socket Networking**: Embedded BSD socket abstraction layer (`socket`, `bind`, `listen`, `accept`, `read`, `write`, `close`) integrated with the LwIP TCP/IP stack in OS mode.
+* **QEMU Interrupt-Driven Ethernet Driver**: Custom SMSC9118 (LAN9118) Ethernet hardware driver (`ethernetif.c`) processing incoming network packets via NVIC IRQ 13 interrupts inside QEMU.
+* **Demonstration POSIX HTTP Web Server**: Successfully boots and serves HTML content over virtual TCP port 80 (forwarded to host port 8080) inside QEMU.
+* **Ultra-Compact Footprint**: Achieved an instruction code footprint (`text`) of **~66 KB**, fitting comfortably within tight MCU FLASH limits.
+
+---
+
+## 🔮 Pending Scope & Future Directions
+
+*(General Overview of Ongoing Development)*
+
+* **Advanced Inter-Thread Signalling**: Expanding synchronization mechanisms to support condition-based waiting and multi-task event notifications.
+* **High-Resolution Clock Systems**: Enhancing system clock querying, timestamp generation, and fine-grained timer operations.
+* **Non-Blocking Network I/O & Multiplexing**: Extending socket flag controls, non-blocking operation modes, and multi-socket event monitoring for concurrent connections.
+* **Virtual I/O Abstractions**: Exploring a lightweight file descriptor mapping layer (VFS) to seamlessly route standard I/O streams across console UARTs, sockets, and memory buffers.
+
+---
+
+## 📁 Project Structure
 
 * **`FreeRTOS/Source/`**: Core FreeRTOS kernel source code.
-* **`FreeRTOS-Plus/`**: Supplementary packages, including the Percepio TraceRecorder and LwIP TCP/IP stack.
+* **`FreeRTOS-Plus/`**: Supplementary packages, including LwIP TCP/IP stack and Percepio TraceRecorder.
 * **`FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/`**: Active target application folder.
   * **[main.c](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/main.c)**: Redirection of `stdout` stream to UART0 register to pipe prints directly to the QEMU terminal window.
-  * **[posix_shim.h](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.h)** & **[posix_shim.c](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c)**: Decoupled POSIX compatibility layer shim mapping POSIX threads, mutexes, counting semaphores, and timing to FreeRTOS primitives.
+  * **[posix_shim.h](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.h)** & **[posix_shim.c](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c)**: Decoupled POSIX compatibility layer shim mapping threads, mutexes, counting semaphores, and timing to FreeRTOS primitives.
   * **[main_blinky.c](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/main_blinky.c)**: Worker threads demo application and simulated HTTP web server.
   * **[lwipopts.h](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/lwipopts.h)**: Configuration settings for LwIP.
   * **[sys_arch.c](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/sys_arch.c)**: LwIP OS adaptation layer mapping LwIP threads/queues to FreeRTOS.
   * **[ethernetif.c](FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/ethernetif.c)**: SMSC9118 Network controller driver for LwIP.
   * **`build/gcc/`**: Compilation Makefile, linker script (`mps2_m3.ld`), and exception/interrupt startup routines (`startup_gcc.c`).
+* **[API_TRANSLATION_ROADMAP.md](API_TRANSLATION_ROADMAP.md)**: Exhaustive breakdown of translated APIs, compatibility tiers, and detailed technical expansion specifications.
 
 ---
 
-## How to Build and Run
+## 🛠️ How to Build and Run
 
 ### Prerequisites
 Make sure you have the following tools installed and available on your PATH:
