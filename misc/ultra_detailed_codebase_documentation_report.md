@@ -185,7 +185,7 @@ In embedded Linux simulation environments, file system management is handled by 
 ## 1. `FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/main.c`
 
 ### 1.1 File Overview
-* **File Path**: [main.c](file:///c:/Users/Alok%20Jain/Desktop/STM32/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/main.c)
+* **File Path**: [main.c](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/main.c)
 * **Primary Purpose**: Master hardware setup and application selector. Initializes processor serial communication (UART0), trace diagnostic infrastructure (Percepio TraceRecorder), and dispatches execution to `main_blinky()` (Simulated Linux environment).
 
 ### 1.2 Component Breakdown
@@ -256,15 +256,15 @@ In embedded Linux simulation environments, file system management is handled by 
 ```
 
 ### 1.4 Dependencies & Interactions
-* Depends on [FreeRTOS.h](file:///c:/Users/Alok%20Jain/Desktop/STM32/STM32-Simulated-Linux/FreeRTOS/Source/include/FreeRTOS.h), `task.h`, `trcRecorder.h`.
-* Invokes `main_blinky()` in [main_blinky.c](file:///c:/Users/Alok%20Jain/Desktop/STM32/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/main_blinky.c).
+* Depends on [FreeRTOS.h](../FreeRTOS/Source/include/FreeRTOS.h), `task.h`, `trcRecorder.h`.
+* Invokes `main_blinky()` in [main_blinky.c](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/main_blinky.c).
 
 ---
 
 ## 2. `FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/main_blinky.c`
 
 ### 2.1 File Overview
-* **File Path**: [main_blinky.c](file:///c:/Users/Alok%20Jain/Desktop/STM32/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/main_blinky.c)
+* **File Path**: [main_blinky.c](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/main_blinky.c)
 * **Primary Purpose**: Implements the entire POSIX Compatibility Layer (`pthread`, `pthread_mutex`, `sem_t`, `sleep`, `usleep`), maintains global thread tracking structures, executes worker thread concurrency tests, and runs the POSIX LwIP HTTP Web Server.
 
 ### 2.2 Component Breakdown
@@ -435,7 +435,7 @@ typedef struct posix_thread {
 ## 3. `FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/sys_arch.c`
 
 ### 3.1 File Overview
-* **File Path**: [sys_arch.c](file:///c:/Users/Alok%20Jain/Desktop/STM32/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/sys_arch.c)
+* **File Path**: [sys_arch.c](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/sys_arch.c)
 * **Primary Purpose**: System Architecture Abstraction Layer mapping LwIP semaphores, mutexes, mailboxes (queues), and thread management directly onto native FreeRTOS kernel APIs.
 
 ### 3.2 Component Breakdown
@@ -470,7 +470,7 @@ typedef struct posix_thread {
 ## 4. `FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/ethernetif.c`
 
 ### 4.1 File Overview
-* **File Path**: [ethernetif.c](file:///c:/Users/Alok%20Jain/Desktop/STM32/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/ethernetif.c)
+* **File Path**: [ethernetif.c](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/ethernetif.c)
 * **Primary Purpose**: Low-level hardware network driver interfacing LwIP with the SMSC9118 (LAN9118) Ethernet MAC/PHY controller on the emulated ARM Cortex-M3 MPS2 AN385 platform.
 
 ### 4.2 Component Breakdown
@@ -523,7 +523,7 @@ typedef struct posix_thread {
 ## 5. Network Stack Configuration (`lwipopts.h`, `arch/cc.h`, `arch/sys_arch.h`)
 
 ### 5.1 `FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/lwipopts.h`
-* **File Path**: [lwipopts.h](file:///c:/Users/Alok%20Jain/Desktop/STM32/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/lwipopts.h)
+* **File Path**: [lwipopts.h](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/lwipopts.h)
 * **Primary Purpose**: Configures LwIP compile-time stack options.
 * **Key Definitions**:
   * `NO_SYS 0`: Enables full OS multithreading integration.
@@ -533,12 +533,12 @@ typedef struct posix_thread {
   * `TCPIP_THREAD_PRIO (configMAX_PRIORITIES - 2)`: Assigns high execution priority to LwIP core stack thread.
 
 ### 5.2 `FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/arch/cc.h`
-* **File Path**: [arch/cc.h](file:///c:/Users/Alok%20Jain/Desktop/STM32/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/arch/cc.h)
+* **File Path**: [arch/cc.h](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/arch/cc.h)
 * **Primary Purpose**: Defines compiler data types and platform specifiers.
 * **Key Definitions**: Sets `BYTE_ORDER LITTLE_ENDIAN`, maps integer types (`u8_t`, `u16_t`, `u32_t`), and defines diagnostic assertion macro `LWIP_PLATFORM_ASSERT()`.
 
 ### 5.3 `FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/arch/sys_arch.h`
-* **File Path**: [arch/sys_arch.h](file:///c:/Users/Alok%20Jain/Desktop/STM32/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/arch/sys_arch.h)
+* **File Path**: [arch/sys_arch.h](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/arch/sys_arch.h)
 * **Primary Purpose**: Maps LwIP abstract primitive types to native FreeRTOS handles:
   * `sys_sem_t` -> `SemaphoreHandle_t`
   * `sys_mutex_t` -> `SemaphoreHandle_t`
@@ -550,7 +550,7 @@ typedef struct posix_thread {
 ## 6. Build System & Startup Assembly (`Makefile` & `startup_gcc.c`)
 
 ### 6.1 `FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/build/gcc/Makefile`
-* **File Path**: [Makefile](file:///c:/Users/Alok%20Jain/Desktop/STM32/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/build/gcc/Makefile)
+* **File Path**: [Makefile](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/build/gcc/Makefile)
 * **Primary Purpose**: Build automation script targeting `arm-none-eabi-gcc`.
 * **Key Build Variables**:
   * `CC = arm-none-eabi-gcc`, `LD = arm-none-eabi-gcc`, `SIZE = arm-none-eabi-size`.
@@ -559,7 +559,7 @@ typedef struct posix_thread {
 * **Compiled Subsystems**: FreeRTOS Core (`tasks.c`, `queue.c`, `heap_4.c`, `port.c`), Percepio TraceRecorder (`trcKernelPort.c`), LwIP Stack (`init.c`, `sockets.c`, `tcpip.c`), LAN9118 Driver (`smsc9220_eth_drv.c`), and POSIX Shim Application (`main.c`, `main_blinky.c`, `sys_arch.c`, `ethernetif.c`).
 
 ### 6.2 `FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/build/gcc/startup_gcc.c`
-* **File Path**: [startup_gcc.c](file:///c:/Users/Alok%20Jain/Desktop/STM32/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/build/gcc/startup_gcc.c)
+* **File Path**: [startup_gcc.c](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/build/gcc/startup_gcc.c)
 * **Primary Purpose**: Defines ARM Cortex-M3 vector table and system reset handlers.
 * **Component Breakdown**:
   * `isr_vector[]`: Vector table stored in `.isr_vector` flash section. Contains Initial Stack Pointer (`&_estack`), `Reset_Handler`, FreeRTOS kernel handlers (`vPortSVCHandler`, `xPortPendSVHandler`, `xPortSysTickHandler`), and hardware IRQs.
@@ -571,12 +571,12 @@ typedef struct posix_thread {
 ## 7. Documentation & PDF Generation Tools (`README.md`, `SYSTEM_OVERVIEW.md`, `generate_pdf.py`, `generate_results_pdf.py`)
 
 ### 7.1 `README.md` & `SYSTEM_OVERVIEW.md`
-* **[README.md](file:///c:/Users/Alok%20Jain/Desktop/STM32/STM32-Simulated-Linux/README.md)**: Main repository documentation providing quickstart compilation instructions (`make clean all`), QEMU invocation syntax with host port forwarding (`-netdev user,id=mynet0,hostfwd=tcp::8080-:80`), and `curl` test commands.
-* **[SYSTEM_OVERVIEW.md](file:///c:/Users/Alok%20Jain/Desktop/STM32/STM32-Simulated-Linux/SYSTEM_OVERVIEW.md)**: Comprehensive architectural reference mapping hardware emulation layers to OS shims and networking protocols.
+* **[README.md](../README.md)**: Main repository documentation providing quickstart compilation instructions (`make clean all`), QEMU invocation syntax with host port forwarding (`-netdev user,id=mynet0,hostfwd=tcp::8080-:80`), and `curl` test commands.
+* **[SYSTEM_OVERVIEW.md](../SYSTEM_OVERVIEW.md)**: Comprehensive architectural reference mapping hardware emulation layers to OS shims and networking protocols.
 
 ### 7.2 `generate_pdf.py` & `generate_results_pdf.py`
-* **[generate_pdf.py](file:///c:/Users/Alok%20Jain/Desktop/STM32/STM32-Simulated-Linux/generate_pdf.py)**: Python script using ReportLab to render `GANTT_CHART.pdf` containing visual project roadmaps and timeline tables.
-* **[generate_results_pdf.py](file:///c:/Users/Alok%20Jain/Desktop/STM32/STM32-Simulated-Linux/generate_results_pdf.py)**: Python script using ReportLab to render `results.pdf` formatting empirical POSIX shim benchmark figures and network throughput metrics.
+* **[generate_pdf.py](../generate_pdf.py)**: Python script using ReportLab to render `GANTT_CHART.pdf` containing visual project roadmaps and timeline tables.
+* **[generate_results_pdf.py](../generate_results_pdf.py)**: Python script using ReportLab to render `results.pdf` formatting empirical POSIX shim benchmark figures and network throughput metrics.
 
 ---
 

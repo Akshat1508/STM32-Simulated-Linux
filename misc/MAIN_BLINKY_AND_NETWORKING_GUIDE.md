@@ -363,7 +363,7 @@ The **POSIX Compatibility Shim Layer** is encapsulated in `posix_shim.c` (with p
 ---
 
 ## 1. `sys_arch.c` (LwIP OS Architecture Layer)
-* **Path**: [sys_arch.c](file:///c:/Users/Alok%20Jain/Desktop/STM32/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/sys_arch.c)
+* **Path**: [sys_arch.c](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/sys_arch.c)
 * **Detailed Working**: LwIP is written to be OS-agnostic. `sys_arch.c` implements the mandatory wrapper functions that bridge LwIP stack expectations to native FreeRTOS calls:
   * **Semaphores**: `sys_sem_new()` calls `xSemaphoreCreateCounting(65535, count)`. `sys_arch_sem_wait()` calls `xSemaphoreTake()` with tick timeout conversion.
   * **Mutexes**: `sys_mutex_new()` calls `xSemaphoreCreateMutex()`. `sys_mutex_lock()` calls `xSemaphoreTake(..., portMAX_DELAY)`.
@@ -374,7 +374,7 @@ The **POSIX Compatibility Shim Layer** is encapsulated in `posix_shim.c` (with p
 ---
 
 ## 2. `ethernetif.c` (SMSC9118 Network Interface Driver)
-* **Path**: [ethernetif.c](file:///c:/Users/Alok%20Jain/Desktop/STM32/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/ethernetif.c)
+* **Path**: [ethernetif.c](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/ethernetif.c)
 * **Detailed Working**: Hardware network driver connecting LwIP to the QEMU SMSC9118 Ethernet controller:
   * **Initialization (`ethernetif_init` / `low_level_init`)**: Configures MAC address `00:08:29:11:22:33`, sets MTU to 1500, sets NVIC IRQ 13 priority to `configMAX_SYSCALL_INTERRUPT_PRIORITY`, enables hardware Rx status FIFO level interrupts, and spawns high-priority task `LWIP_RX` (`ethernetif_input_task`).
   * **Interrupt Handling (`EthernetISR`)**: Triggers when NVIC IRQ 13 asserts. Clears interrupt status, disables Rx interrupt, notifies `LWIP_RX` task via `vTaskNotifyGiveFromISR()`, and requests immediate context switch (`portYIELD_FROM_ISR()`).
@@ -384,7 +384,7 @@ The **POSIX Compatibility Shim Layer** is encapsulated in `posix_shim.c` (with p
 ---
 
 ## 3. `lwipopts.h` (LwIP Configuration Header)
-* **Path**: [lwipopts.h](file:///c:/Users/Alok%20Jain/Desktop/STM32/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/lwipopts.h)
+* **Path**: [lwipopts.h](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/lwipopts.h)
 * **Detailed Working**: Compile-time configuration header customizing LwIP behavior:
   * `NO_SYS 0`: Enables full OS mode with multi-threading support.
   * `LWIP_SOCKET 1` & `LWIP_COMPAT_SOCKETS 1`: Enables standard POSIX socket API function names (`socket`, `bind`, `listen`, `accept`, `read`, `write`, `close`).
@@ -395,7 +395,7 @@ The **POSIX Compatibility Shim Layer** is encapsulated in `posix_shim.c` (with p
 ---
 
 ## 4. `arch/cc.h` (Platform Type Specifications)
-* **Path**: [arch/cc.h](file:///c:/Users/Alok%20Jain/Desktop/STM32/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/arch/cc.h)
+* **Path**: [arch/cc.h](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/arch/cc.h)
 * **Detailed Working**: Specifies platform compiler types and specifications:
   * `BYTE_ORDER LITTLE_ENDIAN`: Configures LwIP to match ARM Cortex-M3 little-endian byte ordering.
   * Data types: Maps `u8_t`, `u16_t`, `u32_t`, `s8_t`, `s16_t`, `s32_t` to standard C `uint8_t`, `uint16_t`, `uint32_t`, etc.
@@ -404,7 +404,7 @@ The **POSIX Compatibility Shim Layer** is encapsulated in `posix_shim.c` (with p
 ---
 
 ## 5. `arch/sys_arch.h` (System Architecture Types)
-* **Path**: [arch/sys_arch.h](file:///c:/Users/Alok%20Jain/Desktop/STM32/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/arch/sys_arch.h)
+* **Path**: [arch/sys_arch.h](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/arch/sys_arch.h)
 * **Detailed Working**: Maps abstract LwIP types to concrete FreeRTOS handles:
   * `typedef SemaphoreHandle_t sys_sem_t;`
   * `typedef SemaphoreHandle_t sys_mutex_t;`
@@ -415,7 +415,7 @@ The **POSIX Compatibility Shim Layer** is encapsulated in `posix_shim.c` (with p
 ---
 
 ## 6. `Makefile` (GCC Build System Script)
-* **Path**: [Makefile](file:///c:/Users/Alok%20Jain/Desktop/STM32/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/build/gcc/Makefile)
+* **Path**: [Makefile](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/build/gcc/Makefile)
 * **Detailed Working**: Controls compilation of source code into executable binary `RTOSDemo.out`:
   * Sets cross-compiler `arm-none-eabi-gcc`.
   * Sets CFLAGS: `-mthumb -mcpu=cortex-m3 -ffreestanding -g3 -Os -ffunction-sections -fdata-sections`.

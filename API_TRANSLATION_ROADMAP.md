@@ -20,15 +20,15 @@ This document provides an exhaustive, multi-tiered analysis of:
 ## 2. Exhaustive Breakdown of Implemented APIs (22 Total)
 
 The POSIX Compatibility Layer source code is located in:
-* Public Header: [`posix_shim.h`](file:///Users/kartikayechaturvedi/Dev/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.h)
-* C Implementation: [`posix_shim.c`](file:///Users/kartikayechaturvedi/Dev/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c)
-* Networking Glue: [`sys_arch.c`](file:///Users/kartikayechaturvedi/Dev/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/sys_arch.c) and [`ethernetif.c`](file:///Users/kartikayechaturvedi/Dev/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/ethernetif.c)
+* Public Header: [`posix_shim.h`](./FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.h)
+* C Implementation: [`posix_shim.c`](./FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c)
+* Networking Glue: [`sys_arch.c`](./FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/sys_arch.c) and [`ethernetif.c`](./FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/ethernetif.c)
 
 ---
 
 ### 2.1 POSIX Thread Management (`pthread_*`) — 5 APIs
 
-All POSIX threads are tracked via an internal singly-linked list (`g_thread_list`) of [`posix_thread_t`](file:///Users/kartikayechaturvedi/Dev/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L34-L42) nodes allocated from the FreeRTOS heap (`pvPortMalloc`). Access to the registry is guarded by Cortex-M priority-mask critical sections (`taskENTER_CRITICAL()` / `taskEXIT_CRITICAL()`).
+All POSIX threads are tracked via an internal singly-linked list (`g_thread_list`) of [`posix_thread_t`](./FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L34-L42) nodes allocated from the FreeRTOS heap (`pvPortMalloc`). Access to the registry is guarded by Cortex-M priority-mask critical sections (`taskENTER_CRITICAL()` / `taskEXIT_CRITICAL()`).
 
 ```c
 typedef struct posix_thread {
@@ -43,31 +43,31 @@ typedef struct posix_thread {
 ```
 
 #### 1. `pthread_create`
-* **File Location**: [`posix_shim.c` (L117-L159)](file:///Users/kartikayechaturvedi/Dev/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L117-L159)
+* **File Location**: [`posix_shim.c` (L117-L159)](./FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L117-L159)
 * **Signature**: `int pthread_create(pthread_t *thread, const pthread_attr_t *attr, void *(*start_routine)(void *), void *arg)`
 * **Underlying Primitive**: `pvPortMalloc` + `xSemaphoreCreateBinary` + `xTaskCreate`
-* **Mechanics**: Allocates a `posix_thread_t` structure, creates a binary semaphore `join_sem`, suspends the scheduler (`vTaskSuspendAll()`), spawns a FreeRTOS task running [`posix_thread_wrapper`](file:///Users/kartikayechaturvedi/Dev/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L106-L111) (1024-word stack, priority `tskIDLE_PRIORITY + 1`), prepends the node to `g_thread_list`, and resumes the scheduler (`xTaskResumeAll()`). Returns `0` on success, `-1` on failure.
+* **Mechanics**: Allocates a `posix_thread_t` structure, creates a binary semaphore `join_sem`, suspends the scheduler (`vTaskSuspendAll()`), spawns a FreeRTOS task running [`posix_thread_wrapper`](./FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L106-L111) (1024-word stack, priority `tskIDLE_PRIORITY + 1`), prepends the node to `g_thread_list`, and resumes the scheduler (`xTaskResumeAll()`). Returns `0` on success, `-1` on failure.
 
 #### 2. `pthread_join`
-* **File Location**: [`posix_shim.c` (L161-L181)](file:///Users/kartikayechaturvedi/Dev/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L161-L181)
+* **File Location**: [`posix_shim.c` (L161-L181)](./FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L161-L181)
 * **Signature**: `int pthread_join(pthread_t thread, void **retval)`
 * **Underlying Primitive**: `xSemaphoreTake(t->join_sem, portMAX_DELAY)` + `vSemaphoreDelete` + `vPortFree`
 * **Mechanics**: Blocks the calling task on `t->join_sem` until the target thread finishes executing and invokes `pthread_exit()`. Once woken, copies `t->retval` to `*retval` (if non-null), unlinks the node from `g_thread_list`, deletes `join_sem`, and frees the `posix_thread_t` memory allocation.
 
 #### 3. `pthread_exit`
-* **File Location**: [`posix_shim.c` (L183-L200)](file:///Users/kartikayechaturvedi/Dev/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L183-L200)
+* **File Location**: [`posix_shim.c` (L183-L200)](./FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L183-L200)
 * **Signature**: `void pthread_exit(void *retval)`
 * **Underlying Primitive**: `xTaskGetCurrentTaskHandle` + `xSemaphoreGive` + `vTaskDelete(NULL)`
 * **Mechanics**: Locates the calling thread's node in `g_thread_list`. If `detached == 1`, performs immediate self-cleanup (removes node, deletes `join_sem`, frees memory). If `detached == 0`, saves `retval` and releases `join_sem` via `xSemaphoreGive()`. Terminates the FreeRTOS task via `vTaskDelete(NULL)`.
 
 #### 4. `pthread_detach`
-* **File Location**: [`posix_shim.c` (L202-L210)](file:///Users/kartikayechaturvedi/Dev/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L202-L210)
+* **File Location**: [`posix_shim.c` (L202-L210)](./FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L202-L210)
 * **Signature**: `int pthread_detach(pthread_t thread)`
 * **Underlying Primitive**: Direct structure state modification (`t->detached = 1`)
 * **Mechanics**: Sets the detached flag to `1`. Ensures that when `pthread_exit()` is called, resources are automatically reclaimed without requiring another thread to invoke `pthread_join()`.
 
 #### 5. `pthread_self`
-* **File Location**: [`posix_shim.c` (L212-L216)](file:///Users/kartikayechaturvedi/Dev/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L212-L216)
+* **File Location**: [`posix_shim.c` (L212-L216)](./FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L212-L216)
 * **Signature**: `pthread_t pthread_self(void)`
 * **Underlying Primitive**: `xTaskGetCurrentTaskHandle()` + `find_thread()`
 * **Mechanics**: Queries FreeRTOS for the active task handle and returns the matching `posix_thread_t` pointer cast to `pthread_t`.
@@ -76,28 +76,28 @@ typedef struct posix_thread {
 
 ### 2.2 POSIX Mutex API (`pthread_mutex_*`) — 4 APIs
 
-In [`posix_shim.h`](file:///Users/kartikayechaturvedi/Dev/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.h#L12), `pthread_mutex_t` is defined as a pointer-sized scalar (`uintptr_t`). It directly stores a FreeRTOS `SemaphoreHandle_t` created as a recursive or standard mutex.
+In [`posix_shim.h`](./FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.h#L12), `pthread_mutex_t` is defined as a pointer-sized scalar (`uintptr_t`). It directly stores a FreeRTOS `SemaphoreHandle_t` created as a recursive or standard mutex.
 
 #### 6. `pthread_mutex_init`
-* **File Location**: [`posix_shim.c` (L225-L237)](file:///Users/kartikayechaturvedi/Dev/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L225-L237)
+* **File Location**: [`posix_shim.c` (L225-L237)](./FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L225-L237)
 * **Signature**: `int pthread_mutex_init(pthread_mutex_t *mutex, const pthread_mutexattr_t *attr)`
 * **Underlying Primitive**: `xSemaphoreCreateMutex()`
 * **Mechanics**: Allocates a FreeRTOS priority-inheritance mutex semaphore and assigns the handle to `*mutex`. Returns `0` on success, `-1` on failure.
 
 #### 7. `pthread_mutex_lock`
-* **File Location**: [`posix_shim.c` (L239-L249)](file:///Users/kartikayechaturvedi/Dev/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L239-L249)
+* **File Location**: [`posix_shim.c` (L239-L249)](./FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L239-L249)
 * **Signature**: `int pthread_mutex_lock(pthread_mutex_t *mutex)`
 * **Underlying Primitive**: `xSemaphoreTake((SemaphoreHandle_t)*mutex, portMAX_DELAY)`
 * **Mechanics**: Takes the mutex semaphore, blocking indefinitely (`portMAX_DELAY`) until acquired. Inherits task priority if higher-priority tasks contend for the lock.
 
 #### 8. `pthread_mutex_unlock`
-* **File Location**: [`posix_shim.c` (L251-L261)](file:///Users/kartikayechaturvedi/Dev/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L251-L261)
+* **File Location**: [`posix_shim.c` (L251-L261)](./FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L251-L261)
 * **Signature**: `int pthread_mutex_unlock(pthread_mutex_t *mutex)`
 * **Underlying Primitive**: `xSemaphoreGive((SemaphoreHandle_t)*mutex)`
 * **Mechanics**: Releases ownership of the mutex semaphore. Returns `0` on success, `-1` on error.
 
 #### 9. `pthread_mutex_destroy`
-* **File Location**: [`posix_shim.c` (L263-L274)](file:///Users/kartikayechaturvedi/Dev/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L263-L274)
+* **File Location**: [`posix_shim.c` (L263-L274)](./FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L263-L274)
 * **Signature**: `int pthread_mutex_destroy(pthread_mutex_t *mutex)`
 * **Underlying Primitive**: `vSemaphoreDelete((SemaphoreHandle_t)*mutex)`
 * **Mechanics**: Deletes the FreeRTOS mutex semaphore handle and resets `*mutex` to `0`.
@@ -106,28 +106,28 @@ In [`posix_shim.h`](file:///Users/kartikayechaturvedi/Dev/STM32-Simulated-Linux/
 
 ### 2.3 POSIX Counting Semaphores (`sem_*`) — 4 APIs
 
-Because bare-metal GCC toolchains (`arm-none-eabi-gcc` with standard newlib) lack `<semaphore.h>`, [`posix_shim.h`](file:///Users/kartikayechaturvedi/Dev/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.h#L19) defines `sem_t` as an opaque pointer (`typedef void *sem_t`) wrapping FreeRTOS counting semaphores.
+Because bare-metal GCC toolchains (`arm-none-eabi-gcc` with standard newlib) lack `<semaphore.h>`, [`posix_shim.h`](./FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.h#L19) defines `sem_t` as an opaque pointer (`typedef void *sem_t`) wrapping FreeRTOS counting semaphores.
 
 #### 10. `sem_init`
-* **File Location**: [`posix_shim.c` (L302-L314)](file:///Users/kartikayechaturvedi/Dev/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L302-L314)
+* **File Location**: [`posix_shim.c` (L302-L314)](./FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L302-L314)
 * **Signature**: `int sem_init(sem_t *sem, int pshared, unsigned int value)`
 * **Underlying Primitive**: `xSemaphoreCreateCounting(65535, value)`
 * **Mechanics**: Creates a FreeRTOS counting semaphore initialized with count `value` and maximum count `65535`. (Note: `pshared` is ignored since memory space is unified on bare-metal).
 
 #### 11. `sem_wait`
-* **File Location**: [`posix_shim.c` (L316-L326)](file:///Users/kartikayechaturvedi/Dev/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L316-L326)
+* **File Location**: [`posix_shim.c` (L316-L326)](./FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L316-L326)
 * **Signature**: `int sem_wait(sem_t *sem)`
 * **Underlying Primitive**: `xSemaphoreTake((SemaphoreHandle_t)*sem, portMAX_DELAY)`
 * **Mechanics**: Decrements the semaphore count. If the count is zero, blocks indefinitely until a `sem_post()` occurs.
 
 #### 12. `sem_post`
-* **File Location**: [`posix_shim.c` (L328-L338)](file:///Users/kartikayechaturvedi/Dev/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L328-L338)
+* **File Location**: [`posix_shim.c` (L328-L338)](./FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L328-L338)
 * **Signature**: `int sem_post(sem_t *sem)`
 * **Underlying Primitive**: `xSemaphoreGive((SemaphoreHandle_t)*sem)`
 * **Mechanics**: Increments the semaphore count, waking up any task blocked in `sem_wait()`.
 
 #### 13. `sem_destroy`
-* **File Location**: [`posix_shim.c` (L340-L351)](file:///Users/kartikayechaturvedi/Dev/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L340-L351)
+* **File Location**: [`posix_shim.c` (L340-L351)](./FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L340-L351)
 * **Signature**: `int sem_destroy(sem_t *sem)`
 * **Underlying Primitive**: `vSemaphoreDelete((SemaphoreHandle_t)*sem)`
 * **Mechanics**: Frees the counting semaphore resources and sets `*sem` to `NULL`.
@@ -137,13 +137,13 @@ Because bare-metal GCC toolchains (`arm-none-eabi-gcc` with standard newlib) lac
 ### 2.4 POSIX Timing & Yielding (`sleep`, `usleep`) — 2 APIs
 
 #### 14. `sleep`
-* **File Location**: [`posix_shim.c` (L280-L284)](file:///Users/kartikayechaturvedi/Dev/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L280-L284)
+* **File Location**: [`posix_shim.c` (L280-L284)](./FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L280-L284)
 * **Signature**: `unsigned int sleep(unsigned int seconds)`
 * **Underlying Primitive**: `vTaskDelay(pdMS_TO_TICKS(seconds * 1000UL))`
 * **Mechanics**: Converts requested seconds into system timer ticks (`configTICK_RATE_HZ`) and puts the calling task into the Blocked state for the calculated duration. Always returns `0`.
 
 #### 15. `usleep`
-* **File Location**: [`posix_shim.c` (L286-L294)](file:///Users/kartikayechaturvedi/Dev/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L286-L294)
+* **File Location**: [`posix_shim.c` (L286-L294)](./FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L286-L294)
 * **Signature**: `int usleep(useconds_t useconds)`
 * **Underlying Primitive**: `vTaskDelay(ticks)`
 * **Mechanics**: Converts microseconds into FreeRTOS ticks. Guarantees at least a 1-tick delay for any non-zero input (`useconds > 0`).
@@ -152,7 +152,7 @@ Because bare-metal GCC toolchains (`arm-none-eabi-gcc` with standard newlib) lac
 
 ### 2.5 BSD Socket Network API (via LwIP BSD Socket Layer) — 7 APIs
 
-LwIP is configured in OS Mode (`NO_SYS = 0`) via [`sys_arch.c`](file:///Users/kartikayechaturvedi/Dev/STM32-Simulated-Linux/FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/sys_arch.c). Standard BSD socket headers map directly to LwIP API wrappers:
+LwIP is configured in OS Mode (`NO_SYS = 0`) via [`sys_arch.c`](./FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/sys_arch.c). Standard BSD socket headers map directly to LwIP API wrappers:
 
 #### 16. `socket`
 * **Signature**: `int socket(int domain, int type, int protocol)`
