@@ -1,35 +1,52 @@
+# ============================================================================
+# Makefile — GCC Build System Configuration for STM32 Simulated Linux
+# Target Platform: ARM Cortex-M3 (QEMU MPS2 AN385 Platform)
+# Toolchain: GNU Arm Embedded Toolchain (arm-none-eabi-gcc)
+# ============================================================================
+
+# Output binary file and build directory paths
 OUTPUT_DIR := ./output
 IMAGE := $(OUTPUT_DIR)/RTOSDemo.out
 
-# The directory that contains the /source and /demo sub directories.
+# Root relative path to FreeRTOS source tree
 FREERTOS_ROOT = ./../../../..
 
-CC = arm-none-eabi-gcc
-LD = arm-none-eabi-gcc
+# Cross-compilation toolchain executables
+CC   = arm-none-eabi-gcc
+LD   = arm-none-eabi-gcc
 SIZE = arm-none-eabi-size
 MAKE = make
 
+# ============================================================================
+# Compiler Flags Configuration (CFLAGS)
+# Target: ARM Cortex-M3 Thumb-2 instruction set
+# Optimization: -Os (Size optimization for microcontroller Flash limits)
+# ============================================================================
 ifeq ($(PICOLIBC), 1)
     CFLAGS += --specs=picolibc.specs -DPICOLIBC_INTEGER_PRINTF_SCANF
 endif
 CFLAGS += -mthumb -mcpu=cortex-m3 -ffreestanding
 CFLAGS += -g3 -Os -ffunction-sections -fdata-sections
-#CFLAGS += -flto
 CFLAGS += -Wall -Wextra -Wshadow -Wno-unused-value
 CFLAGS += -MMD -MP -MF"$(@:%.o=%.d)" -MT $@
 CFLAGS += $(INCLUDE_DIRS)
 
+# ============================================================================
+# Linker Flags Configuration (LDFLAGS)
+# Uses custom linker script mps2_m3.ld (Flash: 4096K, SRAM: 8192K)
+# Enables dead code stripping (--gc-sections) and newlib nano specs
+# ============================================================================
 LDFLAGS = -T ./mps2_m3.ld
 LDFLAGS += -Xlinker -Map=$(OUTPUT_DIR)/RTOSDemo.map
 LDFLAGS += -Xlinker --gc-sections
-#LDFLAGS += -Xlinker --print-gc-sections
 ifneq ($(PICOLIBC), 1)
-    LDFLAGS += -nostartfiles -specs=nano.specs -specs=nosys.specs # -specs=rdimon.specs
+    LDFLAGS += -nostartfiles -specs=nano.specs -specs=nosys.specs
 endif
 
-#
-# Kernel build.
-#
+# ============================================================================
+# 1. FreeRTOS Real-Time Kernel Core Sources
+# Tasks, scheduler queues, software timers, lists, and heap_4 memory manager
+# ============================================================================
 KERNEL_DIR = $(FREERTOS_ROOT)/Source
 KERNEL_PORT_DIR += $(KERNEL_DIR)/portable/GCC/ARM_CM3
 INCLUDE_DIRS += -I$(KERNEL_DIR)/include \
@@ -44,10 +61,10 @@ SOURCE_FILES += $(KERNEL_DIR)/stream_buffer.c
 SOURCE_FILES += $(KERNEL_DIR)/portable/MemMang/heap_4.c
 SOURCE_FILES += $(KERNEL_DIR)/portable/GCC/ARM_CM3/port.c
 
-#
-# Common demo files for the "full" build, as opposed to the "blinky" build -
-# these files are build by all the FreeRTOS kernel demos.
-#
+# ============================================================================
+# 2. Common FreeRTOS Demo & Test Suite Files
+# Built for comprehensive kernel verification (used when main_full is active)
+# ============================================================================
 DEMO_ROOT = $(FREERTOS_ROOT)/Demo
 COMMON_DEMO_FILES = $(DEMO_ROOT)/Common/Minimal
 INCLUDE_DIRS += -I$(DEMO_ROOT)/Common/include
@@ -80,10 +97,10 @@ SOURCE_FILES += $(COMMON_DEMO_FILES)/TaskNotify.c
 SOURCE_FILES += $(COMMON_DEMO_FILES)/TaskNotifyArray.c
 SOURCE_FILES += $(COMMON_DEMO_FILES)/TimerDemo.c
 
-#
-# Application entry point.  main_blinky is self contained.  main_full builds
-# the above common demo (and test) files too.
-#
+# ============================================================================
+# 3. Application & POSIX Compatibility Layer Sources
+# Active simulated Linux target: main.c, main_blinky.c, posix_shim.c, startup
+# ============================================================================
 DEMO_PROJECT = $(DEMO_ROOT)/CORTEX_MPS2_QEMU_IAR_GCC
 VPATH += $(DEMO_PROJECT)
 INCLUDE_DIRS += -I$(DEMO_PROJECT) -I$(DEMO_PROJECT)/CMSIS
@@ -93,12 +110,12 @@ SOURCE_FILES += $(DEMO_PROJECT)/main_full.c
 SOURCE_FILES += $(DEMO_PROJECT)/posix_shim.c
 SOURCE_FILES += ./startup_gcc.c
 SOURCE_FILES += ./RegTest.c
-# Lightweight print formatting to use in place of the heavier GCC equivalent.
 SOURCE_FILES += ./printf-stdarg.c
 
-#
-# Lightweight IP (LwIP) Stack
-#
+# ============================================================================
+# 4. Lightweight IP (LwIP) Stack & Network Drivers
+# LwIP 1.4.0 core protocols, OS glue (sys_arch.c), and SMSC9118 Ethernet driver
+# ============================================================================
 LWIP_DIR = $(FREERTOS_ROOT)/Demo/Common/ethernet/lwip-1.4.0
 LWIP_SRC = $(LWIP_DIR)/src
 ETHERNET_DRIVER_DIR = $(FREERTOS_ROOT)/../FreeRTOS-Plus/Source/FreeRTOS-Plus-TCP/source/portable/NetworkInterface/MPS2_AN385/ether_lan9118
@@ -151,7 +168,9 @@ SOURCE_FILES += $(LWIP_SRC)/core/init.c \
                 $(DEMO_PROJECT)/ethernetif.c \
                 $(ETHERNET_DRIVER_DIR)/smsc9220_eth_drv.c
 
-# Percepio TraceRecorder (FreeRTOS-Plus-Trace)
+# ============================================================================
+# 5. Percepio TraceRecorder Instrumentation (FreeRTOS-Plus-Trace)
+# ============================================================================
 TRACERECORDER_DIR = $(DEMO_ROOT)/../../FreeRTOS-Plus/Source/FreeRTOS-Plus-Trace
 TRACERECORDER_CFG_DIR = $(DEMO_PROJECT)/TraceRecorderConfig
 VPATH += $(TRACERECORDER_DIR)
@@ -190,22 +209,30 @@ SOURCE_FILES += $(TRACERECORDER_DIR)/trcString.c
 SOURCE_FILES += $(TRACERECORDER_DIR)/trcTask.c
 SOURCE_FILES += $(TRACERECORDER_DIR)/trcTimestamp.c
 
-#Create a list of object files with the desired output directory path.
+# ============================================================================
+# Object & Dependency List Construction
+# ============================================================================
 OBJS = $(SOURCE_FILES:%.c=%.o)
 OBJS_NO_PATH = $(notdir $(OBJS))
 OBJS_OUTPUT = $(OBJS_NO_PATH:%.o=$(OUTPUT_DIR)/%.o)
 
-#Create a list of dependency files with the desired output directory path.
 DEP_FILES := $(SOURCE_FILES:%.c=$(OUTPUT_DIR)/%.d)
 DEP_FILES_NO_PATH = $(notdir $(DEP_FILES))
 DEP_OUTPUT = $(DEP_FILES_NO_PATH:%.d=$(OUTPUT_DIR)/%.d)
 
+# ============================================================================
+# Build Rules & Targets
+# ============================================================================
+
+# Default target: compile and link firmware binary
 all: $(IMAGE)
 
+# Compilation rule: C source to object file with header dependency generation
 %.o : %.c
 $(OUTPUT_DIR)/%.o : %.c $(OUTPUT_DIR)/%.d Makefile
 	$(CC) $(CFLAGS) -c $< -o $@
 
+# Final linking rule: Links all objects using linker script mps2_m3.ld
 $(IMAGE): ./mps2_m3.ld $(OBJS_OUTPUT) Makefile
 	@echo ""
 	@echo ""
@@ -214,16 +241,15 @@ $(IMAGE): ./mps2_m3.ld $(OBJS_OUTPUT) Makefile
 	$(LD) $(CFLAGS) $(LDFLAGS) $(OBJS_OUTPUT) -o $(IMAGE)
 	$(SIZE) $(IMAGE)
 
+# Include generated header dependency files (.d)
 $(DEP_OUTPUT):
 include $(wildcard $(DEP_OUTPUT))
 
+# Clean build artifacts rule
 clean:
 	rm -f $(IMAGE) $(OUTPUT_DIR)/RTOSDemo.map $(OUTPUT_DIR)/*.o $(OUTPUT_DIR)/*.d
 
-#use "make print-[VARIABLE_NAME] to print the value of a variable generated by
-#this makefile.
-print-%  : ; @echo $* = $($*)
+# Debug helper to inspect variable values: make print-CFLAGS
+print-% : ; @echo $* = $($*)
 
 .PHONY: all clean
-
-

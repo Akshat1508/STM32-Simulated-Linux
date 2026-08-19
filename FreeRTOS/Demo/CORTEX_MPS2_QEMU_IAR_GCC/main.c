@@ -1,137 +1,95 @@
 /*
- * FreeRTOS V202212.00
- * Copyright (C) 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * ============================================================================
+ * File: main.c
+ * Description: Master Hardware Setup, Stdout Redirection & FreeRTOS Hook Handlers
+ * Target Platform: ARM Cortex-M3 (MPS2 AN385 Emulator Model on QEMU)
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy of
- * this software and associated documentation files (the "Software"), to deal in
- * the Software without restriction, including without limitation the rights to
- * use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
- * the Software, and to permit persons to whom the Software is furnished to do so,
- * subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
- * FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
- * COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
- * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
- * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- *
- * https://www.FreeRTOS.org
- * https://github.com/FreeRTOS
- *
+ * Core Responsibilities:
+ *   1. Hardware Initialization: Configures MPS2 UART0 MMIO registers.
+ *   2. Console I/O Redirection: Routes C standard printf() via __write()/_uart_putc()
+ *      directly to UART0 data register (0x40004000UL) for QEMU stdio output.
+ *   3. Application Dispatcher: Dispatches to main_blinky() (Simulated Linux mode).
+ *   4. Exception & Kernel Hooks: Implements FreeRTOS diagnostic callbacks for
+ *      heap allocation failure, stack overflow, idle, tick, and assertion hooks.
+ *   5. Static Memory Buffers: Provides static memory allocations for the Idle Task
+ *      and Timer Service Task (configUSE_STATIC_ALLOCATION = 1).
+ * ============================================================================
  */
 
-
-/******************************************************************************
- * See https://www.freertos.org/freertos-on-qemu-mps2-an385-model.html for
- * instructions.
- *
- * This project provides two demo applications.  A simple blinky style project,
- * and a more comprehensive test and demo application.  The
- * mainCREATE_SIMPLE_BLINKY_DEMO_ONLY constant, defined in this file, is used to
- * select between the two.  The simply blinky demo is implemented and described
- * in main_blinky.c.  The more comprehensive test and demo application is
- * implemented and described in main_full.c.
- *
- * This file implements the code that is not demo specific, including the
- * hardware setup and FreeRTOS hook functions.
- *
- * Running in QEMU:
- * Use the following commands to start the application running in a way that
- * enables the debugger to connect, omit the "-s -S" to run the project without
- * the debugger:
- * qemu-system-arm -machine mps2-an385 -cpu cortex-m3 -kernel [path-to]/RTOSDemo.out -monitor none -nographic -serial stdio -s -S
- */
-
-/* FreeRTOS includes. */
+/* FreeRTOS Kernel API */
 #include "FreeRTOS.h"
 #include "task.h"
 
-/* Standard includes. */
+/* Standard C library includes */
 #include <stdio.h>
 #include <string.h>
 
-/* TODO: Steps for adding TraceRecorder are tagged with comments like this. */
-/* TODO: This way, Eclipse IDEs can provide a summary in the Tasks window. */
-/* TODO: To open Tasks, select Window -> Show View -> Tasks (or Other) */
-
-/* TODO TraceRecorder (Step 1): Include trcRecorder.h to access the API. */
+/* Percepio TraceRecorder diagnostic interface */
 #include <trcRecorder.h>
 
-/* This project provides two demo applications.  A simple blinky style demo
- * application, and a more comprehensive test and demo application.  The
- * mainCREATE_SIMPLE_BLINKY_DEMO_ONLY setting is used to select between the two.
- *
- * If mainCREATE_SIMPLE_BLINKY_DEMO_ONLY is 1 then the blinky demo will be built.
- * The blinky demo is implemented and described in main_blinky.c.
- *
- * If mainCREATE_SIMPLE_BLINKY_DEMO_ONLY is not 1 then the comprehensive test and
- * demo application will be built.  The comprehensive test and demo application is
- * implemented and described in main_full.c. */
+/*
+ * Demo Selector Macro:
+ * - 1 = Boots main_blinky() (Simulated POSIX Linux Environment Demo)
+ * - 0 = Boots main_full() (Comprehensive FreeRTOS kernel regression test suite)
+ */
 #define mainCREATE_SIMPLE_BLINKY_DEMO_ONLY    1
 
-/* printf() output uses the UART.  These constants define the addresses of the
- * required UART registers. */
-#define UART0_ADDRESS                         ( 0x40004000UL )
-#define UART0_DATA                            ( *( ( ( volatile uint32_t * ) ( UART0_ADDRESS + 0UL ) ) ) )
-#define UART0_STATE                           ( *( ( ( volatile uint32_t * ) ( UART0_ADDRESS + 4UL ) ) ) )
-#define UART0_CTRL                            ( *( ( ( volatile uint32_t * ) ( UART0_ADDRESS + 8UL ) ) ) )
-#define UART0_BAUDDIV                         ( *( ( ( volatile uint32_t * ) ( UART0_ADDRESS + 16UL ) ) ) )
-#define TX_BUFFER_MASK                        ( 1UL )
-
 /*
- * main_blinky() is used when mainCREATE_SIMPLE_BLINKY_DEMO_ONLY is set to 1.
- * main_full() is used when mainCREATE_SIMPLE_BLINKY_DEMO_ONLY is set to 0.
+ * ============================================================================
+ * ARM Cortex-M MPS2 AN385 UART0 Memory-Mapped I/O (MMIO) Registers
+ * Base Address: 0x40004000UL
+ * ============================================================================
  */
+#define UART0_ADDRESS                         ( 0x40004000UL )
+#define UART0_DATA                            ( *( ( ( volatile uint32_t * ) ( UART0_ADDRESS + 0UL ) ) ) )  /* Data Read/Write Register */
+#define UART0_STATE                           ( *( ( ( volatile uint32_t * ) ( UART0_ADDRESS + 4UL ) ) ) )  /* Status Register (TX/RX full/empty) */
+#define UART0_CTRL                            ( *( ( ( volatile uint32_t * ) ( UART0_ADDRESS + 8UL ) ) ) )  /* Control Register (TX/RX enable) */
+#define UART0_BAUDDIV                         ( *( ( ( volatile uint32_t * ) ( UART0_ADDRESS + 16UL ) ) ) ) /* Baud Rate Divider */
+#define TX_BUFFER_MASK                        ( 1UL )                                                       /* Bit 0: TX Buffer Full Flag */
+
+/* External demo application function prototypes */
 extern void main_blinky( void );
 extern void main_full( void );
 
-/*
- * Only the comprehensive demo uses application hook (callback) functions.  See
- * https://www.FreeRTOS.org/a00016.html for more information.
- */
+/* Comprehensive demo application hook declarations */
 void vFullDemoTickHookFunction( void );
 void vFullDemoIdleFunction( void );
 
-/*
- * Printf() output is sent to the serial port.  Initialise the serial hardware.
- */
+/* Forward declaration of private hardware setup routine */
 static void prvUARTInit( void );
 
-/*-----------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 
+/**
+ * @brief Master system entry point invoked by Reset_Handler post-boot.
+ *
+ * Configures serial diagnostic hardware, initializes trace instrumentation,
+ * and transfers control to the selected demo application (main_blinky).
+ *
+ * @return Returns 0 (conceptually), but execution transfers infinitely to the RTOS.
+ */
 int main( void )
 {
-    /* See https://www.freertos.org/freertos-on-qemu-mps2-an385-model.html for
-     * instructions. */
-
-	/* Initializing TraceRecorder. Using #if (configUSE_TRACE_FACILITY == 1)
-	 * is normally not needed. TraceRecorder API calls are normally ignored
-     * and produce no code when configUSE_TRACE_FACILITY is 0, assuming 
-	 * trcRecorder.h is included. However, this was missing for 
-	 * xTraceTimestampSetPeriod() in TraceRecorder v4.10.2. */   
+    /*
+     * 1. Initialize Percepio TraceRecorder (if enabled in FreeRTOSConfig.h):
+     * Must be called before any FreeRTOS kernel API calls are made.
+     */
 #if (configUSE_TRACE_FACILITY == 1)
+    xTraceInitialize();
+    xTraceEnable(TRC_START);
+    xTraceTimestampSetPeriod(configCPU_CLOCK_HZ / configTICK_RATE_HZ);
+#endif
 
-	/* TODO TraceRecorder (Step 2): Call xTraceInitialize early in main().
-	 * This should be called before any FreeRTOS calls are made. */
-	xTraceInitialize();
-	
-	/* TODO TraceRecorder (Step 3): Call xTraceEnable to start tracing. */
-	xTraceEnable(TRC_START);
-	
-	/* Extra step needed for using TraceRecorder on QEMU. */
-	xTraceTimestampSetPeriod(configCPU_CLOCK_HZ/configTICK_RATE_HZ);
-
-#endif	
-
-    /* Hardware initialisation.  printf() output uses the UART for IO. */
+    /*
+     * 2. Configure Hardware Peripherals:
+     * Sets up UART0 registers to allow printf() output over serial terminal.
+     */
     prvUARTInit();
 
-    /* The mainCREATE_SIMPLE_BLINKY_DEMO_ONLY setting is described at the top
-     * of this file. */
+    /*
+     * 3. Launch Demo Application:
+     * Dispatches execution to main_blinky() to boot the simulated Linux environment.
+     */
     #if ( mainCREATE_SIMPLE_BLINKY_DEMO_ONLY == 1 )
     {
         main_blinky();
@@ -141,108 +99,118 @@ int main( void )
         main_full();
     }
     #endif
+
     return 0;
 }
-/*-----------------------------------------------------------*/
 
+/*---------------------------------------------------------------------------*/
+
+/**
+ * @brief FreeRTOS Heap Allocation Failure Hook.
+ *
+ * Triggered automatically by pvPortMalloc() if the heap memory pool
+ * (configTOTAL_HEAP_SIZE) is exhausted. Disables interrupts and halts execution.
+ */
 void vApplicationMallocFailedHook( void )
 {
-    /* vApplicationMallocFailedHook() will only be called if
-     * configUSE_MALLOC_FAILED_HOOK is set to 1 in FreeRTOSConfig.h.  It is a hook
-     * function that will get called if a call to pvPortMalloc() fails.
-     * pvPortMalloc() is called internally by the kernel whenever a task, queue,
-     * timer or semaphore is created using the dynamic allocation (as opposed to
-     * static allocation) option.  It is also called by various parts of the
-     * demo application.  If heap_1.c, heap_2.c or heap_4.c is being used, then the
-     * size of the	heap available to pvPortMalloc() is defined by
-     * configTOTAL_HEAP_SIZE in FreeRTOSConfig.h, and the xPortGetFreeHeapSize()
-     * API function can be used to query the size of free heap space that remains
-     * (although it does not provide information on how the remaining heap might be
-     * fragmented).  See http://www.freertos.org/a00111.html for more
-     * information. */
-    printf( "\r\n\r\nMalloc failed\r\n" );
+    printf( "\r\n\r\n[CRITICAL] FreeRTOS Malloc Failed! Heap memory exhausted.\r\n" );
     portDISABLE_INTERRUPTS();
 
+    /* Trap CPU in infinite loop for JTAG debugger attachment */
     for( ; ; )
     {
     }
 }
-/*-----------------------------------------------------------*/
 
+/*---------------------------------------------------------------------------*/
+
+/**
+ * @brief FreeRTOS Idle Task Hook.
+ *
+ * Executed on every iteration of the background Idle task when no application
+ * tasks are in the Ready state. Must never block or delay.
+ */
 void vApplicationIdleHook( void )
 {
-    /* vApplicationIdleHook() will only be called if configUSE_IDLE_HOOK is set
-     * to 1 in FreeRTOSConfig.h.  It will be called on each iteration of the idle
-     * task.  It is essential that code added to this hook function never attempts
-     * to block in any way (for example, call xQueueReceive() with a block time
-     * specified, or call vTaskDelay()).  If application tasks make use of the
-     * vTaskDelete() API function to delete themselves then it is also important
-     * that vApplicationIdleHook() is permitted to return to its calling function,
-     * because it is the responsibility of the idle task to clean up memory
-     * allocated by the kernel to any task that has since deleted itself. */
+    /* In blinky mode, the idle task yields execution seamlessly */
 }
-/*-----------------------------------------------------------*/
 
+/*---------------------------------------------------------------------------*/
+
+/**
+ * @brief FreeRTOS Task Stack Overflow Hook.
+ *
+ * Triggered if the kernel detects that a task's Process Stack Pointer (PSP)
+ * has exceeded its allocated stack boundary (configCHECK_FOR_STACK_OVERFLOW).
+ *
+ * @param pxTask     Handle of the corrupted FreeRTOS task.
+ * @param pcTaskName Null-terminated ASCII name string of the offending task.
+ */
 void vApplicationStackOverflowHook( TaskHandle_t pxTask,
                                     char * pcTaskName )
 {
     ( void ) pcTaskName;
     ( void ) pxTask;
 
-    /* Run time stack overflow checking is performed if
-     * configCHECK_FOR_STACK_OVERFLOW is defined to 1 or 2.  This hook
-     * function is called if a stack overflow is detected. */
-    printf( "\r\n\r\nStack overflow in %s\r\n", pcTaskName );
+    printf( "\r\n\r\n[CRITICAL] Stack overflow detected in task: %s\r\n", pcTaskName );
     portDISABLE_INTERRUPTS();
 
+    /* Trap CPU execution */
     for( ; ; )
     {
     }
 }
-/*-----------------------------------------------------------*/
 
+/*---------------------------------------------------------------------------*/
+
+/**
+ * @brief FreeRTOS SysTick Timer Interrupt Hook.
+ *
+ * Called during every 1 ms SysTick timer interrupt tick (1000 Hz).
+ * Executed in hardware interrupt context using Main Stack Pointer (MSP).
+ */
 void vApplicationTickHook( void )
 {
-    /* This function will be called by each tick interrupt if
-    * configUSE_TICK_HOOK is set to 1 in FreeRTOSConfig.h.  User code can be
-    * added here, but the tick hook is called from an interrupt context, so
-    * code must not attempt to block, and only the interrupt safe FreeRTOS API
-    * functions can be used (those that end in FromISR()). */
-
     #if ( mainCREATE_SIMPLE_BLINKY_DEMO_ONLY != 1 )
     {
         vFullDemoTickHookFunction();
     }
-    #endif /* mainCREATE_SIMPLE_BLINKY_DEMO_ONLY */
+    #endif
 }
-/*-----------------------------------------------------------*/
 
+/*---------------------------------------------------------------------------*/
+
+/**
+ * @brief Daemon / Timer Task Startup Hook.
+ *
+ * Invoked once when the FreeRTOS software timer daemon task begins execution.
+ */
 void vApplicationDaemonTaskStartupHook( void )
 {
-    /* This function will be called once only, when the daemon task starts to
-     * execute (sometimes called the timer task).  This is useful if the
-     * application includes initialisation code that would benefit from executing
-     * after the scheduler has been started. */
-	 
-	 xTraceEnable(TRC_START);
+    xTraceEnable(TRC_START);
 }
-/*-----------------------------------------------------------*/
 
+/*---------------------------------------------------------------------------*/
+
+/**
+ * @brief Kernel Assertion Failure Callback.
+ *
+ * Triggered whenever a configASSERT(x) condition evaluates to false.
+ * Prints file name and line number, disables interrupts, and halts.
+ *
+ * @param pcFileName Source code file path where assertion failed.
+ * @param ulLine     Line number of the failed assertion.
+ */
 void vAssertCalled( const char * pcFileName,
                     uint32_t ulLine )
 {
     volatile uint32_t ulSetToNonZeroInDebuggerToContinue = 0;
 
-    /* Called if an assertion passed to configASSERT() fails.  See
-     * http://www.freertos.org/a00110.html#configASSERT for more information. */
-
-    printf( "ASSERT! Line %d, file %s\r\n", ( int ) ulLine, pcFileName );
+    printf( "[ASSERTION FAILURE] Line %d, file %s\r\n", ( int ) ulLine, pcFileName );
 
     taskENTER_CRITICAL();
     {
-        /* You can step out of this function to debug the assertion by using
-         * the debugger to set ulSetToNonZeroInDebuggerToContinue to a non-zero
-         * value. */
+        /* Allows JTAG debugger to resume execution by setting variable to 1 */
         while( ulSetToNonZeroInDebuggerToContinue == 0 )
         {
             __asm volatile ( "NOP" );
@@ -251,79 +219,72 @@ void vAssertCalled( const char * pcFileName,
     }
     taskEXIT_CRITICAL();
 }
-/*-----------------------------------------------------------*/
 
-/* configUSE_STATIC_ALLOCATION is set to 1, so the application must provide an
- * implementation of vApplicationGetIdleTaskMemory() to provide the memory that is
- * used by the Idle task. */
+/*---------------------------------------------------------------------------*/
+
+/*
+ * Static Memory Allocator for FreeRTOS Idle Task
+ * Required when configUSE_STATIC_ALLOCATION == 1.
+ */
 void vApplicationGetIdleTaskMemory( StaticTask_t ** ppxIdleTaskTCBBuffer,
                                     StackType_t ** ppxIdleTaskStackBuffer,
                                     uint32_t * pulIdleTaskStackSize )
 {
-/* If the buffers to be provided to the Idle task are declared inside this
- * function then they must be declared static - otherwise they will be allocated on
- * the stack and so not exists after this function exits. */
     static StaticTask_t xIdleTaskTCB;
     static StackType_t uxIdleTaskStack[ configMINIMAL_STACK_SIZE ];
 
-    /* Pass out a pointer to the StaticTask_t structure in which the Idle task's
-     * state will be stored. */
-    *ppxIdleTaskTCBBuffer = &xIdleTaskTCB;
-
-    /* Pass out the array that will be used as the Idle task's stack. */
+    *ppxIdleTaskTCBBuffer   = &xIdleTaskTCB;
     *ppxIdleTaskStackBuffer = uxIdleTaskStack;
-
-    /* Pass out the size of the array pointed to by *ppxIdleTaskStackBuffer.
-     * Note that, as the array is necessarily of type StackType_t,
-     * configMINIMAL_STACK_SIZE is specified in words, not bytes. */
-    *pulIdleTaskStackSize = configMINIMAL_STACK_SIZE;
+    *pulIdleTaskStackSize   = configMINIMAL_STACK_SIZE;
 }
-/*-----------------------------------------------------------*/
 
-/* configUSE_STATIC_ALLOCATION and configUSE_TIMERS are both set to 1, so the
- * application must provide an implementation of vApplicationGetTimerTaskMemory()
- * to provide the memory that is used by the Timer service task. */
+/*---------------------------------------------------------------------------*/
+
+/*
+ * Static Memory Allocator for FreeRTOS Timer Daemon Task
+ * Required when configUSE_STATIC_ALLOCATION == 1 and configUSE_TIMERS == 1.
+ */
 void vApplicationGetTimerTaskMemory( StaticTask_t ** ppxTimerTaskTCBBuffer,
                                      StackType_t ** ppxTimerTaskStackBuffer,
                                      uint32_t * pulTimerTaskStackSize )
 {
-/* If the buffers to be provided to the Timer task are declared inside this
- * function then they must be declared static - otherwise they will be allocated on
- * the stack and so not exists after this function exits. */
     static StaticTask_t xTimerTaskTCB;
     static StackType_t uxTimerTaskStack[ configTIMER_TASK_STACK_DEPTH ];
 
-    /* Pass out a pointer to the StaticTask_t structure in which the Timer
-     * task's state will be stored. */
-    *ppxTimerTaskTCBBuffer = &xTimerTaskTCB;
-
-    /* Pass out the array that will be used as the Timer task's stack. */
+    *ppxTimerTaskTCBBuffer   = &xTimerTaskTCB;
     *ppxTimerTaskStackBuffer = uxTimerTaskStack;
-
-    /* Pass out the size of the array pointed to by *ppxTimerTaskStackBuffer.
-     * Note that, as the array is necessarily of type StackType_t,
-     * configMINIMAL_STACK_SIZE is specified in words, not bytes. */
-    *pulTimerTaskStackSize = configTIMER_TASK_STACK_DEPTH;
+    *pulTimerTaskStackSize   = configTIMER_TASK_STACK_DEPTH;
 }
-/*-----------------------------------------------------------*/
 
+/*---------------------------------------------------------------------------*/
+
+/**
+ * @brief Configures ARM Cortex-M MPS2 AN385 UART0 hardware registers.
+ *
+ * Sets the baud rate divider to 16 and enables transmitter control bits.
+ */
 static void prvUARTInit( void )
 {
-    UART0_BAUDDIV = 16;
-    UART0_CTRL = 1;
+    UART0_BAUDDIV = 16; /* Configure default UART baud rate */
+    UART0_CTRL    = 1;  /* Enable UART0 TX */
 }
-/*-----------------------------------------------------------*/
+
+/*---------------------------------------------------------------------------*/
 
 #ifdef __PICOLIBC__
-int
-_uart_putc(char c, FILE *file)
+/*
+ * Picolibc standard I/O byte output stream wrapper
+ */
+int _uart_putc(char c, FILE *file)
 {
     ( void ) file;
 
+    /* Wait while TX buffer is full */
     while( ( UART0_STATE & TX_BUFFER_MASK ) != 0 )
     {
     }
 
+    /* Write character to UART data register */
     UART0_DATA = c;
     return (unsigned char) c;
 }
@@ -331,40 +292,55 @@ _uart_putc(char c, FILE *file)
 static FILE __stdio = FDEV_SETUP_STREAM(_uart_putc, NULL, NULL, _FDEV_SETUP_WRITE);
 __attribute__( ( used ) ) FILE *const stdout = &__stdio;
 #else
-/*-----------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 
+/**
+ * @brief Low-level C library write hook for stdout redirection.
+ *
+ * Intercepts standard library printf() output buffers and streams each byte
+ * directly to the MPS2 UART0 hardware data register (0x40004000UL).
+ *
+ * @param iFile         File descriptor index (1 for stdout, 2 for stderr).
+ * @param pcString      Pointer to character buffer to transmit.
+ * @param iStringLength Length in bytes of the character string.
+ *
+ * @return Number of characters successfully written.
+ */
 int __write( int iFile,
              char * pcString,
              int iStringLength )
 {
     int iNextChar;
-
-    /* Avoid compiler warnings about unused parameters. */
     ( void ) iFile;
 
-    /* Output the formatted string to the UART. */
     for( iNextChar = 0; iNextChar < iStringLength; iNextChar++ )
     {
+        /* Wait until hardware TX FIFO has space available */
         while( ( UART0_STATE & TX_BUFFER_MASK ) != 0 )
         {
         }
 
+        /* Emit byte to UART0 hardware register */
         UART0_DATA = *pcString;
         pcString++;
     }
 
     return iStringLength;
 }
-/*-----------------------------------------------------------*/
 
+/*---------------------------------------------------------------------------*/
+
+/**
+ * @brief Guard against accidental standard C library malloc() invocations.
+ *
+ * FreeRTOS uses heap_4.c (pvPortMalloc) for deterministic memory allocation.
+ * Calls to standard malloc() are intercepted and flagged as errors.
+ */
 void * malloc( size_t size )
 {
     ( void ) size;
 
-    /* This project uses heap_4 so doesn't set up a heap for use by the C
-     * library - but something is calling the C library malloc().  See
-     * https://freertos.org/a00111.html for more information. */
-    printf( "\r\n\r\nUnexpected call to malloc() - should be usine pvPortMalloc()\r\n" );
+    printf( "\r\n\r\n[ERROR] Unexpected call to malloc() - use pvPortMalloc() instead!\r\n" );
     portDISABLE_INTERRUPTS();
 
     for( ; ; )
