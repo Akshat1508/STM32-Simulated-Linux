@@ -27,6 +27,12 @@
 /* LWIP_SOCKET = 1: Enables POSIX BSD socket API wrappers (socket, bind, listen, accept, etc.) */
 #define LWIP_SOCKET                 1
 
+/* SO_REUSE = 1: Enables SO_REUSEADDR socket option */
+#define SO_REUSE                    1
+
+/* LWIP_SO_RCVTIMEO = 1: Enables SO_RCVTIMEO socket receive timeout option */
+#define LWIP_SO_RCVTIMEO            1
+
 /* LWIP_NETCONN = 1: Enables sequential Netconn abstraction layer */
 #define LWIP_NETCONN                1
 
