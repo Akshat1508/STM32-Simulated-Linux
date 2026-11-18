@@ -48,7 +48,7 @@ To advance the compatibility layer towards **Tier 2 Compliance (~50 APIs)**. Thi
 ---
 
 ### Milestone 1: POSIX Condition Variables (Group A — 5 APIs)
-*Target Files:* [`FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.h`](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.h), [`posix_shim.c`](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c)
+*Target Files:* [`FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.h`](../../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.h), [`posix_shim.c`](../../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c)
 
 Condition variables enable threads to safely suspend execution until a shared predicate changes, preventing CPU waste from busy polling.
 
@@ -99,7 +99,7 @@ typedef void pthread_condattr_t;
 ---
 
 ### Milestone 2: Outbound Client & Non-Blocking Sockets (Group C — 7 APIs)
-*Target Files:* [`posix_shim.h`](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.h), [`posix_shim.c`](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c), [`lwipopts.h`](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/lwipopts.h)
+*Target Files:* [`posix_shim.h`](../../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.h), [`posix_shim.c`](../../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c), [`lwipopts.h`](../../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/lwipopts.h)
 
 Currently, only server sockets in blocking mode are demonstrated (`listen`/`accept`). Adding client and multiplexing primitives allows bidirectional networking.
 
@@ -123,7 +123,7 @@ Currently, only server sockets in blocking mode are demonstrated (`listen`/`acce
 ---
 
 ### Milestone 3: High-Resolution Clocks & Timers (Group B — 4 APIs)
-*Target Files:* [`posix_shim.h`](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.h), [`posix_shim.c`](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c)
+*Target Files:* [`posix_shim.h`](../../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.h), [`posix_shim.c`](../../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c)
 
 #### 1. Hardware-Assisted Microsecond Resolution
 FreeRTOS `xTaskGetTickCount()` provides 1 ms resolution (at 1000 Hz `configTICK_RATE_HZ`). By sampling the ARM Cortex-M SysTick current value register (`SysTick->VAL`), microsecond and sub-microsecond precision is achieved:
@@ -144,7 +144,7 @@ $$\text{Time}_{\mu s} = (\text{TickCount} \times 1000) + \frac{(\text{SysTick->L
 ---
 
 ### Milestone 4: Extended Mutex & Thread Attributes (Group D — 4 APIs)
-*Target Files:* [`posix_shim.h`](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.h), [`posix_shim.c`](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c)
+*Target Files:* [`posix_shim.h`](../../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.h), [`posix_shim.c`](../../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c)
 
 1. **`pthread_mutex_trylock(pthread_mutex_t *mutex)`**:
    - Calls `xSemaphoreTake((SemaphoreHandle_t)*mutex, 0)`.
@@ -160,7 +160,7 @@ $$\text{Time}_{\mu s} = (\text{TickCount} \times 1000) + \frac{(\text{SysTick->L
 ---
 
 ### Milestone 5: Virtual File System (VFS) Layer Design & Prototype (Group E — 8 APIs)
-*Target Files:* New `vfs.h`, `vfs.c`, integration in [`posix_shim.c`](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c)
+*Target Files:* New `vfs.h`, `vfs.c`, integration in [`posix_shim.c`](../../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c)
 
 Microcontrollers lack physical block storage by default. A lightweight VFS routing layer routes standard file descriptors (`fd`):
 

@@ -2,7 +2,7 @@
 
 **Project:** STM32 Simulated Linux  
 **Date:** November 18, 2026  
-**Document:** `Documentations/milestone1.md`  
+**Document:** `Documentations/work181126/milestone1/milestone1.md`  
 **Milestone:** Group A — POSIX Condition Variables (`pthread_cond_*`)  
 **Target Architecture:** ARM Cortex-M3 (QEMU MPS2 AN385 / STM32)  
 **RTOS Kernel:** FreeRTOS V202212.00  
@@ -86,37 +86,37 @@ All implementations were cross-compiled, linked with `arm-none-eabi-gcc`, and ve
 ## 3. Exhaustive List of Implemented APIs (6 Total)
 
 ### 1. `pthread_cond_init`
-* **File Location**: [`posix_shim.c`](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L430-L459)
+* **File Location**: [`posix_shim.c`](../../../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L430-L459)
 * **Signature**: `int pthread_cond_init(pthread_cond_t *cond, const pthread_condattr_t *attr)`
 * **Underlying Primitives**: `pvPortMalloc` + `xSemaphoreCreateMutex`
 * **Mechanics**: Allocates a dynamic `posix_cond_t` control structure from the FreeRTOS heap (`heap_4.c`), creates an internal serialization mutex (`cond_lock`), initializes the FIFO waiter list pointers (`head = NULL`, `tail = NULL`), and casts the control block address into `*cond`.
 
 ### 2. `pthread_cond_destroy`
-* **File Location**: [`posix_shim.c`](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L462-L484)
+* **File Location**: [`posix_shim.c`](../../../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L462-L484)
 * **Signature**: `int pthread_cond_destroy(pthread_cond_t *cond)`
 * **Underlying Primitives**: `vSemaphoreDelete` + `vPortFree`
 * **Mechanics**: Deletes the internal `cond_lock` mutex, frees the `posix_cond_t` heap allocation, and clears `*cond = 0` to prevent use-after-free bugs.
 
 ### 3. `pthread_cond_signal`
-* **File Location**: [`posix_shim.c`](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L487-L525)
+* **File Location**: [`posix_shim.c`](../../../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L487-L525)
 * **Signature**: `int pthread_cond_signal(pthread_cond_t *cond)`
 * **Underlying Primitives**: `xSemaphoreTake(cond_lock)` + `xSemaphoreGive(waiter->sem)`
 * **Mechanics**: Acquires `cond_lock`, dequeues the longest-waiting node from the head of the list, unblocks that specific task by signaling its private binary semaphore, and releases `cond_lock`. If no threads are waiting, executes as a safe no-op.
 
 ### 4. `pthread_cond_broadcast`
-* **File Location**: [`posix_shim.c`](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L528-L563)
+* **File Location**: [`posix_shim.c`](../../../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L528-L563)
 * **Signature**: `int pthread_cond_broadcast(pthread_cond_t *cond)`
 * **Underlying Primitives**: `xSemaphoreTake(cond_lock)` + loop of `xSemaphoreGive(waiter->sem)`
 * **Mechanics**: Traverses the entire linked list of waiters, giving the personal semaphore of every waiting task. Resets `head` and `tail` to `NULL`.
 
 ### 5. `pthread_cond_wait`
-* **File Location**: [`posix_shim.c`](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L566-L627)
+* **File Location**: [`posix_shim.c`](../../../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L566-L627)
 * **Signature**: `int pthread_cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex)`
 * **Underlying Primitives**: `xSemaphoreCreateBinary` + `pthread_mutex_unlock` + `xSemaphoreTake(waiter.sem, portMAX_DELAY)` + `pthread_mutex_lock`
 * **Mechanics**: Enqueues a stack-local waiter node, unlocks `mutex` under `cond_lock` protection, blocks indefinitely until signaled, re-acquires `mutex` upon waking, and cleans up the binary semaphore.
 
 ### 6. `pthread_cond_timedwait`
-* **File Location**: [`posix_shim.c`](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L630-L735)
+* **File Location**: [`posix_shim.c`](../../../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L630-L735)
 * **Signature**: `int pthread_cond_timedwait(pthread_cond_t *cond, pthread_mutex_t *mutex, const struct timespec *abstime)`
 * **Underlying Primitives**: `xTaskGetTickCount` + `pdMS_TO_TICKS` + `xSemaphoreTake(waiter.sem, wait_ticks)`
 * **Mechanics**: Converts the target `struct timespec` deadline into remaining FreeRTOS scheduler ticks. If the timeout expires before a signal is received, unlinks the waiter node from the queue and returns `ETIMEDOUT`. Re-acquires `mutex` before returning.
@@ -141,7 +141,7 @@ Every function was committed independently to maintain a clean and reviewable hi
 
 ## 5. Verification Suite & Test Design
 
-The verification test was designed as a classic **Multi-Threaded Bounded Buffer Producer-Consumer** pattern in [`main_blinky.c`](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/main_blinky.c):
+The verification test was designed as a classic **Multi-Threaded Bounded Buffer Producer-Consumer** pattern in [`main_blinky.c`](../../../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/main_blinky.c):
 
 ### Test Parameters
 * **Buffer Capacity**: 4 items (`BUFFER_CAPACITY = 4`)

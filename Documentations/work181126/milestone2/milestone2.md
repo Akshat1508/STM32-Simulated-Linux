@@ -2,7 +2,7 @@
 
 **Project:** STM32 Simulated Linux  
 **Date:** November 18, 2026  
-**Document:** `Documentations/milestone2.md`  
+**Document:** `Documentations/work181126/milestone2/milestone2.md`  
 **Milestone:** Group C — Outbound Client & Non-Blocking BSD Sockets  
 **Target Architecture:** ARM Cortex-M3 (QEMU MPS2 AN385 / STM32)  
 **RTOS Kernel:** FreeRTOS V202212.00  
@@ -76,7 +76,7 @@ LwIP 1.4.0 natively provides `lwip_select()` but lacks a POSIX-compliant `poll()
 
 ### 2.2 Loopback Routing & Self-Addressing
 To enable intra-firmware client-server testing and inter-process loopback IPC:
-- `LWIP_NETIF_LOOPBACK 1` and `LWIP_HAVE_LOOPIF 1` were enabled in [`lwipopts.h`](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/lwipopts.h).
+- `LWIP_NETIF_LOOPBACK 1` and `LWIP_HAVE_LOOPIF 1` were enabled in [`lwipopts.h`](../../../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/lwipopts.h).
 - LwIP automatically provisions a loopback interface (`127.0.0.1`) during `netif_init()`.
 - Packets addressed to `127.0.0.1` or the primary interface `10.0.2.15` are diverted through `netif_loop_output()`, queuing packets directly to `tcpip_thread` via internal mailboxes without touching physical Ethernet MAC hardware.
 
@@ -85,43 +85,43 @@ To enable intra-firmware client-server testing and inter-process loopback IPC:
 ## 3. Exhaustive List of Implemented APIs (7 Total)
 
 ### 1. `connect`
-* **File Location**: [`posix_shim.c`](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L841-L845)
+* **File Location**: [`posix_shim.c`](../../../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L841-L845)
 * **Signature**: `int connect(int s, const struct sockaddr *name, socklen_t namelen)`
 * **Underlying Primitive**: `lwip_connect()`
 * **Mechanics**: Initiates active TCP 3-way handshakes to external or local endpoints, transitioning sockets from `UNCONNECTED` to `ESTABLISHED`. Enables edge telemetry transmission and HTTP/MQTT client operations.
 
 ### 2. `send`
-* **File Location**: [`posix_shim.c`](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L850-L854)
+* **File Location**: [`posix_shim.c`](../../../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L850-L854)
 * **Signature**: `int send(int s, const void *dataptr, size_t size, int flags)`
 * **Underlying Primitive**: `lwip_send()`
 * **Mechanics**: Transmits payload data over connected sockets. Supports standard POSIX control flags, including `MSG_DONTWAIT` for non-blocking packet submission to TCP output queues.
 
 ### 3. `recv`
-* **File Location**: [`posix_shim.c`](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L859-L863)
+* **File Location**: [`posix_shim.c`](../../../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L859-L863)
 * **Signature**: `int recv(int s, void *mem, size_t len, int flags)`
 * **Underlying Primitive**: `lwip_recv()`
 * **Mechanics**: Extracts incoming data from TCP receive mailboxes. Supports `MSG_DONTWAIT` (non-blocking retrieval) and `MSG_PEEK` (reading without consuming buffer data).
 
 ### 4. `setsockopt`
-* **File Location**: [`posix_shim.c`](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L868-L872)
+* **File Location**: [`posix_shim.c`](../../../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L868-L872)
 * **Signature**: `int setsockopt(int s, int level, int optname, const void *optval, socklen_t optlen)`
 * **Underlying Primitive**: `lwip_setsockopt()`
 * **Mechanics**: Modifies socket parameters. Configured with `SO_REUSE` and `LWIP_SO_RCVTIMEO` in `lwipopts.h` to enable `SO_REUSEADDR` (fast address re-binding) and `SO_RCVTIMEO` (receive timeout safeguarding).
 
 ### 5. `fcntl`
-* **File Location**: [`posix_shim.c`](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L877-L889)
+* **File Location**: [`posix_shim.c`](../../../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L877-L889)
 * **Signature**: `int fcntl(int fd, int cmd, ...)`
 * **Underlying Primitive**: `lwip_fcntl()`
 * **Mechanics**: Uses variable arguments to inspect (`F_GETFL`) and modify (`F_SETFL`) file status flags. Specifically supports toggling `O_NONBLOCK` on socket file descriptors to prevent threads from stalling indefinitely on empty I/O queues.
 
 ### 6. `select`
-* **File Location**: [`posix_shim.c`](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L894-L899)
+* **File Location**: [`posix_shim.c`](../../../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L894-L899)
 * **Signature**: `int select(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptset, struct timeval *timeout)`
 * **Underlying Primitive**: `lwip_select()`
 * **Mechanics**: Provides synchronous event multiplexing across multiple socket descriptors with microsecond timeout resolution. Signals readiness when read data arrives, write buffers have space, or exceptional errors occur.
 
 ### 7. `poll`
-* **File Location**: [`posix_shim.c`](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L904-L984)
+* **File Location**: [`posix_shim.c`](../../../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/posix_shim.c#L904-L984)
 * **Signature**: `int poll(struct pollfd *fds, nfds_t nfds, int timeout)`
 * **Underlying Primitive**: Custom POSIX Translation Layer mapping to `lwip_select()`
 * **Mechanics**: Translates arrays of `struct pollfd` into `fd_set` bitmasks, executes descriptor monitoring, and converts read/write/error readiness back into `POLLIN`, `POLLOUT`, and `POLLERR` event flags.
@@ -149,7 +149,7 @@ In accordance with project best practices, each API and configuration feature wa
 
 ## 5. Verification Suite & Test Design
 
-The test suite in [`main_blinky.c`](../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/main_blinky.c#L380-L530) tests all 7 APIs end-to-end within the FreeRTOS multitasking environment:
+The test suite in [`main_blinky.c`](../../../FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC/main_blinky.c#L380-L530) tests all 7 APIs end-to-end within the FreeRTOS multitasking environment:
 
 ```
 [Web Server Thread (Port 80)]                [Client Test Thread]
