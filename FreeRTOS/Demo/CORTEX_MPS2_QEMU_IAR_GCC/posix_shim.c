@@ -316,6 +316,19 @@ pthread_t pthread_self(void)
  */
 
 /*
+ * Bit-tagging support for pthread_mutex_t:
+ * Because heap pointers from pvPortMalloc are at least 4-byte/8-byte aligned,
+ * bit 0 is guaranteed to be 0. We use bit 0 to encode whether the mutex is
+ * a standard mutex (0) or a recursive mutex (1).
+ */
+#define POSIX_MUTEX_TYPE_MASK       ((uintptr_t)0x01)
+#define POSIX_MUTEX_TYPE_NORMAL     ((uintptr_t)0x00)
+#define POSIX_MUTEX_TYPE_RECURSIVE  ((uintptr_t)0x01)
+
+#define POSIX_MUTEX_HANDLE(m)       ((SemaphoreHandle_t)((uintptr_t)(m) & ~POSIX_MUTEX_TYPE_MASK))
+#define POSIX_MUTEX_IS_RECURSIVE(m) (((uintptr_t)(m) & POSIX_MUTEX_TYPE_MASK) == POSIX_MUTEX_TYPE_RECURSIVE)
+
+/*
  * pthread_mutex_init — Creates a FreeRTOS priority-inheritance mutex.
  */
 int pthread_mutex_init(pthread_mutex_t *mutex, const pthread_mutexattr_t *attr)
@@ -351,6 +364,33 @@ int pthread_mutex_lock(pthread_mutex_t *mutex)
 
     /* Block indefinitely until mutex lock is acquired */
     return (xSemaphoreTake(xMutex, portMAX_DELAY) == pdPASS) ? 0 : -1;
+}
+
+/*
+ * pthread_mutex_trylock — Attempts to acquire mutex lock without blocking.
+ *
+ * Checks if the mutex is currently available. If available, acquires ownership
+ * and returns 0. If currently held by another thread, returns EBUSY immediately.
+ */
+int pthread_mutex_trylock(pthread_mutex_t *mutex)
+{
+    if (mutex == NULL || *mutex == 0) {
+        return EINVAL;
+    }
+
+    SemaphoreHandle_t xMutex = POSIX_MUTEX_HANDLE(*mutex);
+    if (xMutex == NULL) {
+        return EINVAL;
+    }
+
+    BaseType_t xResult;
+    if (POSIX_MUTEX_IS_RECURSIVE(*mutex)) {
+        xResult = xSemaphoreTakeRecursive(xMutex, 0);
+    } else {
+        xResult = xSemaphoreTake(xMutex, 0);
+    }
+
+    return (xResult == pdPASS) ? 0 : EBUSY;
 }
 
 /*

@@ -148,6 +148,19 @@ int pthread_mutex_init(pthread_mutex_t *mutex, const pthread_mutexattr_t *attr);
 int pthread_mutex_lock(pthread_mutex_t *mutex);
 
 /**
+ * @brief Attempts to lock a mutex without blocking the calling thread.
+ *
+ * Checks if the mutex is currently available. If available, acquires ownership
+ * and returns 0. If currently locked by another thread, returns EBUSY
+ * immediately without placing the caller into a blocked state.
+ *
+ * @param[in,out] mutex Pointer to the initialized mutex lock to acquire.
+ *
+ * @return 0 on success, EBUSY if locked, or EINVAL if pointer is invalid.
+ */
+int pthread_mutex_trylock(pthread_mutex_t *mutex);
+
+/**
  * @brief Releases ownership of a previously acquired POSIX mutex lock.
  *
  * Gives back the underlying FreeRTOS mutex semaphore, unblocking the highest
