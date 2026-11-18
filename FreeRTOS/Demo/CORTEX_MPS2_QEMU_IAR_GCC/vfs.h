@@ -52,6 +52,10 @@
 #define O_APPEND        0x0400
 #endif
 
+#ifndef O_NONBLOCK
+#define O_NONBLOCK      0x4000
+#endif
+
 /* Standard POSIX Seek Directives */
 #ifndef SEEK_SET
 #define SEEK_SET        0

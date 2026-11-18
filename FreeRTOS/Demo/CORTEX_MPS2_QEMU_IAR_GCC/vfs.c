@@ -262,10 +262,17 @@ ssize_t read(int fd, void *buf, size_t count)
                 errno = EBADF;
                 return -1;
             }
-            /* Receive bytes from stream buffer with non-blocking 0 timeout */
-            size_t rx_bytes = xStreamBufferReceive(pipe->buffer, buf, count, 0);
-            if (rx_bytes == 0 && pipe->writers_open <= 0) {
+            if (pipe->writers_open <= 0 && xStreamBufferIsEmpty(pipe->buffer)) {
                 return 0; /* All writers closed and buffer drained: EOF */
+            }
+            TickType_t wait_ticks = (f->flags & O_NONBLOCK) ? 0 : pdMS_TO_TICKS(1000);
+            size_t rx_bytes = xStreamBufferReceive(pipe->buffer, buf, count, wait_ticks);
+            if (rx_bytes == 0) {
+                if (pipe->writers_open <= 0) {
+                    return 0; /* All writers closed and buffer drained: EOF */
+                }
+                errno = EAGAIN;
+                return -1;
             }
             return (ssize_t)rx_bytes;
         }
@@ -351,7 +358,12 @@ ssize_t write(int fd, const void *buf, size_t count)
                 errno = EPIPE;
                 return -1; /* Broken pipe */
             }
-            size_t tx_bytes = xStreamBufferSend(pipe->buffer, buf, count, 0);
+            TickType_t wait_ticks = (f->flags & O_NONBLOCK) ? 0 : pdMS_TO_TICKS(1000);
+            size_t tx_bytes = xStreamBufferSend(pipe->buffer, buf, count, wait_ticks);
+            if (tx_bytes == 0) {
+                errno = EAGAIN;
+                return -1;
+            }
             return (ssize_t)tx_bytes;
         }
 
@@ -511,5 +523,69 @@ int stat(const char *pathname, struct stat *statbuf)
     statbuf->st_nlink = 1;
     statbuf->st_blksize = 256;
     statbuf->st_blocks = (statbuf->st_size + 255) / 256;
+    return 0;
+}
+
+int pipe(int pipefd[2])
+{
+    if (!g_vfs_initialized) {
+        vfs_init();
+    }
+
+    if (pipefd == NULL) {
+        errno = EFAULT;
+        return -1;
+    }
+
+    int fd0 = -1, fd1 = -1;
+    for (int i = VFS_USER_BASE_FD; i <= VFS_USER_MAX_FD; i++) {
+        if (g_vfs_table[i].type == VFS_NODE_FREE) {
+            if (fd0 == -1) {
+                fd0 = i;
+            } else if (fd1 == -1) {
+                fd1 = i;
+                break;
+            }
+        }
+    }
+
+    if (fd0 == -1 || fd1 == -1) {
+        errno = EMFILE;
+        return -1;
+    }
+
+    StreamBufferHandle_t buf = xStreamBufferCreate(128, 1);
+    if (buf == NULL) {
+        errno = ENOMEM;
+        return -1;
+    }
+
+    vfs_pipe_cb_t *pipe_cb = (vfs_pipe_cb_t *)pvPortMalloc(sizeof(vfs_pipe_cb_t));
+    if (pipe_cb == NULL) {
+        vStreamBufferDelete(buf);
+        errno = ENOMEM;
+        return -1;
+    }
+
+    pipe_cb->buffer = buf;
+    pipe_cb->readers_open = 1;
+    pipe_cb->writers_open = 1;
+
+    /* Reader descriptor (pipefd[0]) */
+    g_vfs_table[fd0].type = VFS_NODE_PIPE_READER;
+    g_vfs_table[fd0].flags = O_RDONLY;
+    g_vfs_table[fd0].offset = 0;
+    g_vfs_table[fd0].priv = pipe_cb;
+    g_vfs_table[fd0].ref_count = 1;
+
+    /* Writer descriptor (pipefd[1]) */
+    g_vfs_table[fd1].type = VFS_NODE_PIPE_WRITER;
+    g_vfs_table[fd1].flags = O_WRONLY;
+    g_vfs_table[fd1].offset = 0;
+    g_vfs_table[fd1].priv = pipe_cb;
+    g_vfs_table[fd1].ref_count = 1;
+
+    pipefd[0] = fd0;
+    pipefd[1] = fd1;
     return 0;
 }
