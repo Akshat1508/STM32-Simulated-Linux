@@ -550,8 +550,8 @@ void *clock_timer_test_thread(void *arg)
         printf("[Clock Test] FAILED: clock_gettime(CLOCK_REALTIME)\n");
         all_passed = 0;
     } else {
-        printf("[Clock Test] 1a. clock_gettime(CLOCK_REALTIME) -> %ld s, %ld ns [PASSED]\n",
-               (long)ts_real.tv_sec, (long)ts_real.tv_nsec);
+        printf("[Clock Test] 1a. clock_gettime(CLOCK_REALTIME) -> %d s, %u ns [PASSED]\n",
+               (int)ts_real.tv_sec, (unsigned int)ts_real.tv_nsec);
     }
 
     /* Step 2: Test clock_gettime(CLOCK_MONOTONIC) */
@@ -560,8 +560,8 @@ void *clock_timer_test_thread(void *arg)
         printf("[Clock Test] FAILED: clock_gettime(CLOCK_MONOTONIC)\n");
         all_passed = 0;
     } else {
-        printf("[Clock Test] 1b. clock_gettime(CLOCK_MONOTONIC) -> %ld s, %ld ns [PASSED]\n",
-               (long)ts_mono1.tv_sec, (long)ts_mono1.tv_nsec);
+        printf("[Clock Test] 1b. clock_gettime(CLOCK_MONOTONIC) -> %d s, %u ns [PASSED]\n",
+               (int)ts_mono1.tv_sec, (unsigned int)ts_mono1.tv_nsec);
     }
 
     /* Test clock_gettime error handling */
@@ -580,19 +580,19 @@ void *clock_timer_test_thread(void *arg)
         printf("[Clock Test] FAILED: gettimeofday()\n");
         all_passed = 0;
     } else {
-        printf("[Clock Test] 2. gettimeofday() -> %ld s, %ld us [PASSED]\n",
-               (long)tv.tv_sec, (long)tv.tv_usec);
+        printf("[Clock Test] 2. gettimeofday() -> %d s, %u us [PASSED]\n",
+               (int)tv.tv_sec, (unsigned int)tv.tv_usec);
     }
 
     /* Step 4: Test time() */
     time_t t_var = 0;
     time_t t_ret = time(&t_var);
     if (t_ret < 0 || t_ret != t_var) {
-        printf("[Clock Test] FAILED: time() returned %ld, t_var=%ld\n",
-               (long)t_ret, (long)t_var);
+        printf("[Clock Test] FAILED: time() returned %d, t_var=%d\n",
+               (int)t_ret, (int)t_var);
         all_passed = 0;
     } else {
-        printf("[Clock Test] 3. time() -> %ld s [PASSED]\n", (long)t_ret);
+        printf("[Clock Test] 3. time() -> %d s [PASSED]\n", (int)t_ret);
     }
 
     /* Step 5: Test nanosleep() sub-millisecond precision (500 microseconds = 500,000 ns) */
@@ -611,7 +611,7 @@ void *clock_timer_test_thread(void *arg)
         uint64_t ns_start = (uint64_t)ts_mono1.tv_sec * 1000000000ULL + (uint64_t)ts_mono1.tv_nsec;
         uint64_t ns_end   = (uint64_t)ts_mono2.tv_sec * 1000000000ULL + (uint64_t)ts_mono2.tv_nsec;
         uint64_t delta_ns = (ns_end >= ns_start) ? (ns_end - ns_start) : 0;
-        printf("[Clock Test] 4a. nanosleep(500 us) elapsed: %lu ns [PASSED]\n", (unsigned long)delta_ns);
+        printf("[Clock Test] 4a. nanosleep(500 us) elapsed: %u ns [PASSED]\n", (unsigned int)delta_ns);
     }
 
     /* Step 6: Test nanosleep() coarse delay (50 ms = 50,000,000 ns) */
@@ -630,7 +630,7 @@ void *clock_timer_test_thread(void *arg)
         uint64_t ns_start = (uint64_t)ts_mono1.tv_sec * 1000000000ULL + (uint64_t)ts_mono1.tv_nsec;
         uint64_t ns_end   = (uint64_t)ts_mono2.tv_sec * 1000000000ULL + (uint64_t)ts_mono2.tv_nsec;
         uint64_t delta_ms = ((ns_end >= ns_start) ? (ns_end - ns_start) : 0) / 1000000ULL;
-        printf("[Clock Test] 4b. nanosleep(50 ms) elapsed: %lu ms [PASSED]\n", (unsigned long)delta_ms);
+        printf("[Clock Test] 4b. nanosleep(50 ms) elapsed: %u ms [PASSED]\n", (unsigned int)delta_ms);
     }
 
     printf("[Clock Test] --- Milestone 3 Clocks & Timers Verification Summary: %s ---\n",
