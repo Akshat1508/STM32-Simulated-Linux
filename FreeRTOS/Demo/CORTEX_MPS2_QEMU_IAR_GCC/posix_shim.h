@@ -177,6 +177,19 @@ int pthread_mutex_destroy(pthread_mutex_t *mutex);
 int pthread_cond_init(pthread_cond_t *cond, const pthread_condattr_t *attr);
 
 /**
+ * @brief Wakes one thread waiting on the condition variable.
+ *
+ * Unblocks the highest-priority (or longest-waiting) thread currently
+ * blocked in pthread_cond_wait or pthread_cond_timedwait on this
+ * condition variable.
+ *
+ * @param[in,out] cond Pointer to the condition variable to signal.
+ *
+ * @return 0 on success, or -1 on error.
+ */
+int pthread_cond_signal(pthread_cond_t *cond);
+
+/**
  * @brief Destroys a condition variable and reclaims its resources.
  *
  * Frees the internal waiter queue structures, internal lock semaphore,

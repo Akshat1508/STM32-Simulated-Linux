@@ -460,6 +460,43 @@ int pthread_cond_init(pthread_cond_t *cond, const pthread_condattr_t *attr)
 }
 
 /*
+ * pthread_cond_signal — Wakes exactly one waiter (FIFO: the longest-waiting).
+ *
+ * Dequeues the head waiter node and gives its personal binary semaphore.
+ * If no threads are waiting, this is a no-op (signals are not queued).
+ */
+int pthread_cond_signal(pthread_cond_t *cond)
+{
+    if (cond == NULL) {
+        return -1;
+    }
+
+    posix_cond_t *cv = (posix_cond_t *)(uintptr_t)*cond;
+    if (cv == NULL) {
+        return -1;
+    }
+
+    /* Lock internal queue */
+    xSemaphoreTake(cv->cond_lock, portMAX_DELAY);
+
+    posix_cond_waiter_t *w = cv->head;
+    if (w != NULL) {
+        /* Dequeue head waiter */
+        cv->head = w->next;
+        if (cv->head == NULL) {
+            cv->tail = NULL; /* Queue is now empty */
+        }
+        w->next = NULL;
+
+        /* Wake the dequeued waiter */
+        xSemaphoreGive(w->sem);
+    }
+
+    xSemaphoreGive(cv->cond_lock);
+    return 0;
+}
+
+/*
  * pthread_cond_destroy — Frees the internal lock and control block.
  * Must not be called while any thread is waiting on the condition variable.
  */
