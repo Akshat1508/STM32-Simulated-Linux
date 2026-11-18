@@ -348,3 +348,57 @@ ssize_t write(int fd, const void *buf, size_t count)
             return -1;
     }
 }
+
+off_t lseek(int fd, off_t offset, int whence)
+{
+    if (!g_vfs_initialized) {
+        vfs_init();
+    }
+
+    if (fd < 0 || fd >= VFS_MAX_FDS) {
+        errno = EBADF;
+        return (off_t)-1;
+    }
+
+    vfs_file_t *f = &g_vfs_table[fd];
+    if (f->type == VFS_NODE_FREE) {
+        errno = EBADF;
+        return (off_t)-1;
+    }
+
+    if (f->type != VFS_NODE_RAMFILE) {
+        /* POSIX: ESPIPE indicates fd is associated with a pipe, socket, or FIFO */
+        errno = ESPIPE;
+        return (off_t)-1;
+    }
+
+    vfs_ram_file_t *file = (vfs_ram_file_t *)f->priv;
+    if (file == NULL || !file->in_use) {
+        errno = EIO;
+        return (off_t)-1;
+    }
+
+    off_t new_offset;
+    switch (whence) {
+        case SEEK_SET:
+            new_offset = offset;
+            break;
+        case SEEK_CUR:
+            new_offset = f->offset + offset;
+            break;
+        case SEEK_END:
+            new_offset = (off_t)file->size + offset;
+            break;
+        default:
+            errno = EINVAL;
+            return (off_t)-1;
+    }
+
+    if (new_offset < 0) {
+        errno = EINVAL;
+        return (off_t)-1;
+    }
+
+    f->offset = new_offset;
+    return f->offset;
+}
