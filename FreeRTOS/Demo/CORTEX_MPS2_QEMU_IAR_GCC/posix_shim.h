@@ -454,4 +454,42 @@ int select(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptset,
            struct timeval *timeout);
 #endif
 
+/* Standard POSIX Poll Event Masks (poll) */
+#ifndef POLLIN
+#define POLLIN      0x0001  /* There is data to read */
+#define POLLPRI     0x0002  /* Urgent data to read */
+#define POLLOUT     0x0004  /* Writing is now non-blocking */
+#define POLLERR     0x0008  /* Error condition */
+#define POLLHUP     0x0010  /* Hung up (connection closed) */
+#define POLLNVAL    0x0020  /* Invalid file descriptor */
+#endif
+
+#ifndef _STRUCT_POLLFD
+#define _STRUCT_POLLFD
+struct pollfd {
+    int   fd;       /* File/socket descriptor */
+    short events;   /* Requested event bitmask */
+    short revents;  /* Returned event bitmask */
+};
+#endif
+
+#ifndef _NFDS_T_DECLARED
+#define _NFDS_T_DECLARED
+typedef unsigned int nfds_t;
+#endif
+
+/**
+ * @brief Waits for events on an array of socket file descriptors.
+ *
+ * Translates pollfd structures into fd_set bitmasks and invokes select().
+ * Provides high-level event loop capability for multi-socket polling.
+ *
+ * @param[in,out] fds     Array of pollfd structures specifying descriptors and events.
+ * @param[in]     nfds    Number of elements in the fds array.
+ * @param[in]     timeout Timeout in milliseconds (negative = block indefinitely).
+ *
+ * @return Number of descriptors with non-zero revents, 0 on timeout, or -1 on error.
+ */
+int poll(struct pollfd *fds, nfds_t nfds, int timeout);
+
 #endif /* POSIX_SHIM_H */

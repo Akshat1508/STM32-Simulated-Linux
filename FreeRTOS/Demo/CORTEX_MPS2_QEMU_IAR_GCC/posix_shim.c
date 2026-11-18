@@ -897,3 +897,88 @@ int select(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptset,
 {
     return lwip_select(maxfdp1, readset, writeset, exceptset, timeout);
 }
+
+/*
+ * poll — Waits for events on a set of file descriptors via select().
+ */
+int poll(struct pollfd *fds, nfds_t nfds, int timeout)
+{
+    if (fds == NULL && nfds > 0) {
+        return -1;
+    }
+
+    fd_set read_fds;
+    fd_set write_fds;
+    fd_set except_fds;
+
+    FD_ZERO(&read_fds);
+    FD_ZERO(&write_fds);
+    FD_ZERO(&except_fds);
+
+    int max_fd = -1;
+
+    for (nfds_t i = 0; i < nfds; i++) {
+        fds[i].revents = 0;
+        int fd = fds[i].fd;
+
+        if (fd < 0) {
+            continue; /* Negative descriptor ignored per POSIX spec */
+        }
+
+        if (fd >= FD_SETSIZE) {
+            fds[i].revents = POLLNVAL;
+            continue;
+        }
+
+        if (fds[i].events & (POLLIN | POLLPRI)) {
+            FD_SET(fd, &read_fds);
+        }
+        if (fds[i].events & POLLOUT) {
+            FD_SET(fd, &write_fds);
+        }
+        FD_SET(fd, &except_fds);
+
+        if (fd > max_fd) {
+            max_fd = fd;
+        }
+    }
+
+    struct timeval tv;
+    struct timeval *ptv = NULL;
+
+    if (timeout >= 0) {
+        tv.tv_sec  = timeout / 1000;
+        tv.tv_usec = (timeout % 1000) * 1000;
+        ptv = &tv;
+    }
+
+    int result = lwip_select(max_fd + 1, &read_fds, &write_fds, &except_fds, ptv);
+    if (result <= 0) {
+        return result; /* 0 on timeout, -1 on error */
+    }
+
+    int ready_count = 0;
+
+    for (nfds_t i = 0; i < nfds; i++) {
+        int fd = fds[i].fd;
+        if (fd < 0 || fd >= FD_SETSIZE) {
+            continue;
+        }
+
+        if (FD_ISSET(fd, &read_fds)) {
+            fds[i].revents |= POLLIN;
+        }
+        if (FD_ISSET(fd, &write_fds)) {
+            fds[i].revents |= POLLOUT;
+        }
+        if (FD_ISSET(fd, &except_fds)) {
+            fds[i].revents |= POLLERR;
+        }
+
+        if (fds[i].revents != 0) {
+            ready_count++;
+        }
+    }
+
+    return ready_count;
+}
