@@ -177,6 +177,23 @@ int pthread_mutex_destroy(pthread_mutex_t *mutex);
 int pthread_cond_init(pthread_cond_t *cond, const pthread_condattr_t *attr);
 
 /**
+ * @brief Atomically releases the mutex and blocks on the condition variable.
+ *
+ * The calling thread atomically releases the associated mutex and enters a
+ * blocked state on the condition variable's internal waiter queue. When
+ * signaled (via pthread_cond_signal or pthread_cond_broadcast), the thread
+ * re-acquires the mutex before returning.
+ *
+ * @param[in,out] cond  Pointer to the initialized condition variable.
+ * @param[in,out] mutex Pointer to the mutex currently held by the caller.
+ *
+ * @return 0 on success, or -1 on error.
+ *
+ * @note The mutex must be locked by the calling thread prior to invocation.
+ */
+int pthread_cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex);
+
+/**
  * @brief Wakes one thread waiting on the condition variable.
  *
  * Unblocks the highest-priority (or longest-waiting) thread currently

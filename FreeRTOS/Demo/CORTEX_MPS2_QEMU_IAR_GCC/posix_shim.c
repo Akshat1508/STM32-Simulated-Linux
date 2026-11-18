@@ -460,6 +460,68 @@ int pthread_cond_init(pthread_cond_t *cond, const pthread_condattr_t *attr)
 }
 
 /*
+ * pthread_cond_wait — Atomically releases mutex, blocks on condition variable,
+ * then re-acquires mutex upon wakeup.
+ *
+ * Sequence:
+ *   1. Create a stack-local binary semaphore as a personal wakeup handle.
+ *   2. Lock the internal waiter queue and enqueue this waiter at the tail.
+ *   3. Release the user mutex (atomic relative to signal — the cond_lock
+ *      ensures no signal is lost between enqueue and mutex release).
+ *   4. Unlock the internal waiter queue.
+ *   5. Block on the personal semaphore until signaled.
+ *   6. Re-acquire the user mutex before returning to the caller.
+ *   7. Clean up the personal semaphore.
+ */
+int pthread_cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex)
+{
+    if (cond == NULL || mutex == NULL) {
+        return -1;
+    }
+
+    posix_cond_t *cv = (posix_cond_t *)(uintptr_t)*cond;
+    if (cv == NULL) {
+        return -1;
+    }
+
+    /* Step 1: Create thread-local binary semaphore (initially empty) */
+    posix_cond_waiter_t waiter;
+    waiter.sem  = xSemaphoreCreateBinary();
+    waiter.next = NULL;
+    if (waiter.sem == NULL) {
+        return -1;
+    }
+
+    /* Step 2: Lock internal queue and enqueue this waiter */
+    xSemaphoreTake(cv->cond_lock, portMAX_DELAY);
+
+    if (cv->tail == NULL) {
+        cv->head = &waiter;
+        cv->tail = &waiter;
+    } else {
+        cv->tail->next = &waiter;
+        cv->tail       = &waiter;
+    }
+
+    /* Step 3: Release user mutex while still holding cond_lock (no signal loss) */
+    pthread_mutex_unlock(mutex);
+
+    /* Step 4: Release internal lock — now signal/broadcast can proceed */
+    xSemaphoreGive(cv->cond_lock);
+
+    /* Step 5: Block until pthread_cond_signal/broadcast wakes us */
+    xSemaphoreTake(waiter.sem, portMAX_DELAY);
+
+    /* Step 6: Re-acquire user mutex before returning */
+    pthread_mutex_lock(mutex);
+
+    /* Step 7: Destroy personal semaphore */
+    vSemaphoreDelete(waiter.sem);
+
+    return 0;
+}
+
+/*
  * pthread_cond_signal — Wakes exactly one waiter (FIFO: the longest-waiting).
  *
  * Dequeues the head waiter node and gives its personal binary semaphore.
