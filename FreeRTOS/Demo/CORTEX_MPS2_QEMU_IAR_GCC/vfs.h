@@ -65,6 +65,23 @@
 #define SEEK_END        2
 #endif
 
+/* POSIX File Type / Mode Bits */
+#ifndef S_IFREG
+#define S_IFREG         0100000
+#endif
+
+#ifndef S_IFCHR
+#define S_IFCHR         0020000
+#endif
+
+#ifndef S_IFIFO
+#define S_IFIFO         0010000
+#endif
+
+#ifndef S_IFSOCK
+#define S_IFSOCK        0140000
+#endif
+
 /* VFS Descriptor Table Constants */
 #define VFS_MAX_FDS             32
 

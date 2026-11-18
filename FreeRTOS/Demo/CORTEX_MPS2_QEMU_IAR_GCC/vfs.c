@@ -65,6 +65,18 @@ void vfs_init(void)
     g_vfs_initialized = 1;
 }
 
+static vfs_ram_file_t *vfs_find_ram_file(const char *pathname)
+{
+    for (int i = 0; i < VFS_MAX_RAM_FILES; i++) {
+        if (g_ram_files[i].in_use) {
+            if (strncmp(g_ram_files[i].name, pathname, VFS_MAX_PATH_LEN) == 0) {
+                return &g_ram_files[i];
+            }
+        }
+    }
+    return NULL;
+}
+
 int open(const char *pathname, int flags, ...)
 {
     if (!g_vfs_initialized) {
@@ -401,4 +413,103 @@ off_t lseek(int fd, off_t offset, int whence)
 
     f->offset = new_offset;
     return f->offset;
+}
+
+int fstat(int fd, struct stat *statbuf)
+{
+    if (!g_vfs_initialized) {
+        vfs_init();
+    }
+
+    if (statbuf == NULL) {
+        errno = EFAULT;
+        return -1;
+    }
+
+    if (fd < 0 || fd >= VFS_MAX_FDS) {
+        errno = EBADF;
+        return -1;
+    }
+
+    vfs_file_t *f = &g_vfs_table[fd];
+    if (f->type == VFS_NODE_FREE) {
+        errno = EBADF;
+        return -1;
+    }
+
+    memset(statbuf, 0, sizeof(struct stat));
+
+    switch (f->type) {
+        case VFS_NODE_CONSOLE:
+            statbuf->st_mode = S_IFCHR | 0666;
+            statbuf->st_nlink = 1;
+            statbuf->st_blksize = 1;
+            return 0;
+
+        case VFS_NODE_SOCKET:
+            statbuf->st_mode = S_IFSOCK | 0666;
+            statbuf->st_nlink = 1;
+            return 0;
+
+        case VFS_NODE_RAMFILE: {
+            vfs_ram_file_t *file = (vfs_ram_file_t *)f->priv;
+            if (file == NULL || !file->in_use) {
+                errno = EIO;
+                return -1;
+            }
+            statbuf->st_mode = S_IFREG | 0644;
+            statbuf->st_size = (off_t)file->size;
+            statbuf->st_nlink = 1;
+            statbuf->st_blksize = 256;
+            statbuf->st_blocks = (statbuf->st_size + 255) / 256;
+            return 0;
+        }
+
+        case VFS_NODE_PIPE_READER:
+        case VFS_NODE_PIPE_WRITER:
+            statbuf->st_mode = S_IFIFO | 0600;
+            statbuf->st_nlink = 1;
+            return 0;
+
+        default:
+            errno = EBADF;
+            return -1;
+    }
+}
+
+int stat(const char *pathname, struct stat *statbuf)
+{
+    if (!g_vfs_initialized) {
+        vfs_init();
+    }
+
+    if (pathname == NULL || statbuf == NULL) {
+        errno = EFAULT;
+        return -1;
+    }
+
+    if (strcmp(pathname, "/dev/stdin") == 0 ||
+        strcmp(pathname, "/dev/stdout") == 0 ||
+        strcmp(pathname, "/dev/stderr") == 0 ||
+        strcmp(pathname, "/dev/console") == 0) {
+        memset(statbuf, 0, sizeof(struct stat));
+        statbuf->st_mode = S_IFCHR | 0666;
+        statbuf->st_nlink = 1;
+        statbuf->st_blksize = 1;
+        return 0;
+    }
+
+    vfs_ram_file_t *file = vfs_find_ram_file(pathname);
+    if (file == NULL) {
+        errno = ENOENT;
+        return -1;
+    }
+
+    memset(statbuf, 0, sizeof(struct stat));
+    statbuf->st_mode = S_IFREG | 0644;
+    statbuf->st_size = (off_t)file->size;
+    statbuf->st_nlink = 1;
+    statbuf->st_blksize = 256;
+    statbuf->st_blocks = (statbuf->st_size + 255) / 256;
+    return 0;
 }
