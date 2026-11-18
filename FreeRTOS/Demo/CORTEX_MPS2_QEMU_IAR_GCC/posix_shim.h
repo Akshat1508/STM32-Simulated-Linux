@@ -176,6 +176,19 @@ int pthread_mutex_destroy(pthread_mutex_t *mutex);
  */
 int pthread_cond_init(pthread_cond_t *cond, const pthread_condattr_t *attr);
 
+/**
+ * @brief Destroys a condition variable and reclaims its resources.
+ *
+ * Frees the internal waiter queue structures, internal lock semaphore,
+ * and the condition variable control block. Must not be called while
+ * any thread is blocked on the condition variable.
+ *
+ * @param[in,out] cond Pointer to the condition variable to destroy.
+ *
+ * @return 0 on success, or -1 on error.
+ */
+int pthread_cond_destroy(pthread_cond_t *cond);
+
 /* ============================================================================
  * POSIX Timing, Delays & Scheduler Yield API
  * ============================================================================

@@ -460,6 +460,30 @@ int pthread_cond_init(pthread_cond_t *cond, const pthread_condattr_t *attr)
 }
 
 /*
+ * pthread_cond_destroy — Frees the internal lock and control block.
+ * Must not be called while any thread is waiting on the condition variable.
+ */
+int pthread_cond_destroy(pthread_cond_t *cond)
+{
+    if (cond == NULL) {
+        return -1;
+    }
+
+    posix_cond_t *cv = (posix_cond_t *)(uintptr_t)*cond;
+    if (cv != NULL) {
+        /* Delete internal serialization mutex */
+        if (cv->cond_lock != NULL) {
+            vSemaphoreDelete(cv->cond_lock);
+        }
+
+        /* Free control block heap memory */
+        vPortFree(cv);
+        *cond = 0; /* Clear handle to prevent use-after-free */
+    }
+    return 0;
+}
+
+/*
  * sleep — Suspends thread execution for given seconds.
  */
 unsigned int sleep(unsigned int seconds)
