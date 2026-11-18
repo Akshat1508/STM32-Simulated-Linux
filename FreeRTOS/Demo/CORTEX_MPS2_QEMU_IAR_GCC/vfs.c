@@ -173,27 +173,32 @@ int close(int fd)
         return 0; /* Standard streams remain persistent */
     }
 
-    f->ref_count--;
-    if (f->ref_count > 0) {
-        return 0; /* Still referenced elsewhere via dup2 */
+    /* Check if other descriptors still reference this underlying node/private data */
+    int other_refs = 0;
+    for (int i = 0; i < VFS_MAX_FDS; i++) {
+        if (i != fd && g_vfs_table[i].type == f->type && g_vfs_table[i].priv == f->priv) {
+            other_refs++;
+        }
     }
 
-    if (f->type == VFS_NODE_SOCKET) {
-        int lwip_s = (int)(uintptr_t)f->priv;
-        lwip_close(lwip_s);
-    } else if (f->type == VFS_NODE_PIPE_READER || f->type == VFS_NODE_PIPE_WRITER) {
-        vfs_pipe_cb_t *pipe = (vfs_pipe_cb_t *)f->priv;
-        if (pipe != NULL) {
-            if (f->type == VFS_NODE_PIPE_READER) {
-                pipe->readers_open--;
-            } else {
-                pipe->writers_open--;
-            }
-            if (pipe->readers_open <= 0 && pipe->writers_open <= 0) {
-                if (pipe->buffer != NULL) {
-                    vStreamBufferDelete(pipe->buffer);
+    if (other_refs == 0) {
+        if (f->type == VFS_NODE_SOCKET) {
+            int lwip_s = (int)(uintptr_t)f->priv;
+            lwip_close(lwip_s);
+        } else if (f->type == VFS_NODE_PIPE_READER || f->type == VFS_NODE_PIPE_WRITER) {
+            vfs_pipe_cb_t *pipe = (vfs_pipe_cb_t *)f->priv;
+            if (pipe != NULL) {
+                if (f->type == VFS_NODE_PIPE_READER) {
+                    pipe->readers_open--;
+                } else {
+                    pipe->writers_open--;
                 }
-                vPortFree(pipe);
+                if (pipe->readers_open <= 0 && pipe->writers_open <= 0) {
+                    if (pipe->buffer != NULL) {
+                        vStreamBufferDelete(pipe->buffer);
+                    }
+                    vPortFree(pipe);
+                }
             }
         }
     }
@@ -588,4 +593,37 @@ int pipe(int pipefd[2])
     pipefd[0] = fd0;
     pipefd[1] = fd1;
     return 0;
+}
+
+int dup2(int oldfd, int newfd)
+{
+    if (!g_vfs_initialized) {
+        vfs_init();
+    }
+
+    if (oldfd < 0 || oldfd >= VFS_MAX_FDS || newfd < 0 || newfd >= VFS_MAX_FDS) {
+        errno = EBADF;
+        return -1;
+    }
+
+    vfs_file_t *old_f = &g_vfs_table[oldfd];
+    if (old_f->type == VFS_NODE_FREE) {
+        errno = EBADF;
+        return -1;
+    }
+
+    if (oldfd == newfd) {
+        return newfd;
+    }
+
+    /* If newfd is already open, close it first */
+    if (g_vfs_table[newfd].type != VFS_NODE_FREE) {
+        close(newfd);
+    }
+
+    /* Duplicate file descriptor entry */
+    g_vfs_table[newfd] = *old_f;
+    g_vfs_table[newfd].ref_count = 1;
+
+    return newfd;
 }
