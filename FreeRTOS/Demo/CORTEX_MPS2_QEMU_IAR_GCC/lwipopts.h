@@ -33,6 +33,10 @@
 /* LWIP_SO_RCVTIMEO = 1: Enables SO_RCVTIMEO socket receive timeout option */
 #define LWIP_SO_RCVTIMEO            1
 
+/* Loopback & Local Interface Support */
+#define LWIP_NETIF_LOOPBACK         1
+#define LWIP_HAVE_LOOPIF            1
+
 /* LWIP_NETCONN = 1: Enables sequential Netconn abstraction layer */
 #define LWIP_NETCONN                1
 
