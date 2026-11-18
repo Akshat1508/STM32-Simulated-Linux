@@ -252,4 +252,13 @@ int pipe(int pipefd[2]);
  */
 int dup2(int oldfd, int newfd);
 
+/**
+ * @brief Registers an underlying LwIP socket into the unified VFS table (FD 3..15).
+ *
+ * @param[in] lwip_s Underlying LwIP socket index.
+ *
+ * @return Allocated VFS descriptor (3..15) on success, or -1 on error.
+ */
+int vfs_register_socket(int lwip_s);
+
 #endif /* VFS_H */

@@ -505,10 +505,7 @@ int stat(const char *pathname, struct stat *statbuf)
         return -1;
     }
 
-    if (strcmp(pathname, "/dev/stdin") == 0 ||
-        strcmp(pathname, "/dev/stdout") == 0 ||
-        strcmp(pathname, "/dev/stderr") == 0 ||
-        strcmp(pathname, "/dev/console") == 0) {
+    if (strncmp(pathname, "/dev/", 5) == 0) {
         memset(statbuf, 0, sizeof(struct stat));
         statbuf->st_mode = S_IFCHR | 0666;
         statbuf->st_nlink = 1;
@@ -626,4 +623,30 @@ int dup2(int oldfd, int newfd)
     g_vfs_table[newfd].ref_count = 1;
 
     return newfd;
+}
+
+int vfs_register_socket(int lwip_s)
+{
+    if (!g_vfs_initialized) {
+        vfs_init();
+    }
+
+    if (lwip_s < 0) {
+        errno = EBADF;
+        return -1;
+    }
+
+    for (int i = VFS_SOCKET_BASE_FD; i <= VFS_SOCKET_MAX_FD; i++) {
+        if (g_vfs_table[i].type == VFS_NODE_FREE) {
+            g_vfs_table[i].type      = VFS_NODE_SOCKET;
+            g_vfs_table[i].flags     = O_RDWR;
+            g_vfs_table[i].offset    = 0;
+            g_vfs_table[i].priv      = (void *)(uintptr_t)lwip_s;
+            g_vfs_table[i].ref_count = 1;
+            return i;
+        }
+    }
+
+    errno = EMFILE;
+    return -1;
 }
