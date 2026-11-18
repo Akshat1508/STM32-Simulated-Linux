@@ -867,6 +867,23 @@ int nanosleep(const struct timespec *req, struct timespec *rem)
 }
 
 /*
+ * time — Retrieves elapsed time in whole seconds.
+ */
+time_t time(time_t *tloc)
+{
+    struct timespec ts;
+    if (clock_gettime(CLOCK_REALTIME, &ts) != 0) {
+        ts.tv_sec = (time_t)(xTaskGetTickCount() / configTICK_RATE_HZ);
+    }
+
+    if (tloc != NULL) {
+        *tloc = ts.tv_sec;
+    }
+
+    return ts.tv_sec;
+}
+
+/*
  * sleep — Suspends thread execution for given seconds.
  */
 unsigned int sleep(unsigned int seconds)

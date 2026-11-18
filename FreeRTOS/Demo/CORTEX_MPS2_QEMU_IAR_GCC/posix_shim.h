@@ -307,6 +307,18 @@ int gettimeofday(struct timeval *tv, void *tz);
 int nanosleep(const struct timespec *req, struct timespec *rem);
 
 /**
+ * @brief Retrieves the current time in seconds since the Epoch.
+ *
+ * Obtains whole seconds elapsed from the high-resolution hardware clock.
+ * If tloc is non-NULL, also stores the return value in the location pointed to by tloc.
+ *
+ * @param[out] tloc Optional pointer to time_t to store the result (may be NULL).
+ *
+ * @return Current time in seconds.
+ */
+time_t time(time_t *tloc);
+
+/**
  * @brief Suspends execution of the calling thread for a specified number of seconds.
  *
  * Translates seconds into system timer ticks (configTICK_RATE_HZ) and invokes
