@@ -194,6 +194,21 @@ int pthread_cond_init(pthread_cond_t *cond, const pthread_condattr_t *attr);
 int pthread_cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex);
 
 /**
+ * @brief Atomically releases the mutex and blocks with a timeout.
+ *
+ * Same semantics as pthread_cond_wait, but returns ETIMEDOUT if the
+ * absolute time specified by abstime expires before the condition is signaled.
+ *
+ * @param[in,out] cond    Pointer to the initialized condition variable.
+ * @param[in,out] mutex   Pointer to the mutex currently held by the caller.
+ * @param[in]     abstime Pointer to absolute timeout specification (struct timespec).
+ *
+ * @return 0 on success, ETIMEDOUT on timeout expiry, or -1 on error.
+ */
+int pthread_cond_timedwait(pthread_cond_t *cond, pthread_mutex_t *mutex,
+                           const struct timespec *abstime);
+
+/**
  * @brief Wakes one thread waiting on the condition variable.
  *
  * Unblocks the highest-priority (or longest-waiting) thread currently

@@ -522,6 +522,112 @@ int pthread_cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex)
 }
 
 /*
+ * pthread_cond_timedwait — Same as pthread_cond_wait but with a timeout.
+ *
+ * Converts the absolute timespec into a relative FreeRTOS tick duration.
+ * Returns ETIMEDOUT if the semaphore is not given within the timeout window.
+ *
+ * On timeout, the waiter must be manually dequeued from the condition
+ * variable's waiter list to prevent dangling stack pointers.
+ */
+int pthread_cond_timedwait(pthread_cond_t *cond, pthread_mutex_t *mutex,
+                           const struct timespec *abstime)
+{
+    if (cond == NULL || mutex == NULL || abstime == NULL) {
+        return -1;
+    }
+
+    posix_cond_t *cv = (posix_cond_t *)(uintptr_t)*cond;
+    if (cv == NULL) {
+        return -1;
+    }
+
+    /*
+     * Convert absolute timespec to relative FreeRTOS ticks.
+     * Since we don't have a wall-clock epoch on bare-metal, we interpret
+     * abstime relative to system boot (monotonic tick base).
+     */
+    TickType_t abs_ticks = pdMS_TO_TICKS(
+        (TickType_t)abstime->tv_sec * 1000UL +
+        (TickType_t)(abstime->tv_nsec / 1000000L)
+    );
+    TickType_t now_ticks = xTaskGetTickCount();
+    TickType_t wait_ticks;
+
+    if (abs_ticks > now_ticks) {
+        wait_ticks = abs_ticks - now_ticks;
+    } else {
+        wait_ticks = 0; /* Deadline already passed */
+    }
+
+    /* Create thread-local binary semaphore */
+    posix_cond_waiter_t waiter;
+    waiter.sem  = xSemaphoreCreateBinary();
+    waiter.next = NULL;
+    if (waiter.sem == NULL) {
+        return -1;
+    }
+
+    /* Enqueue waiter under internal lock */
+    xSemaphoreTake(cv->cond_lock, portMAX_DELAY);
+
+    if (cv->tail == NULL) {
+        cv->head = &waiter;
+        cv->tail = &waiter;
+    } else {
+        cv->tail->next = &waiter;
+        cv->tail       = &waiter;
+    }
+
+    /* Release user mutex while holding cond_lock */
+    pthread_mutex_unlock(mutex);
+    xSemaphoreGive(cv->cond_lock);
+
+    /* Block with timeout */
+    BaseType_t result = xSemaphoreTake(waiter.sem, wait_ticks);
+
+    int ret = 0;
+    if (result != pdPASS) {
+        /*
+         * Timeout expired: remove our waiter node from the queue
+         * to prevent the condition variable from signaling a dead
+         * stack-local semaphore after we return.
+         */
+        xSemaphoreTake(cv->cond_lock, portMAX_DELAY);
+
+        posix_cond_waiter_t **pp = &cv->head;
+        while (*pp != NULL) {
+            if (*pp == &waiter) {
+                *pp = waiter.next;
+                /* Fix tail if we were the last node */
+                if (cv->tail == &waiter) {
+                    cv->tail = (cv->head == NULL) ? NULL : cv->head;
+                    /* Walk to actual tail if head is non-null */
+                    if (cv->tail != NULL) {
+                        posix_cond_waiter_t *t = cv->tail;
+                        while (t->next != NULL) t = t->next;
+                        cv->tail = t;
+                    }
+                }
+                break;
+            }
+            pp = &((*pp)->next);
+        }
+
+        xSemaphoreGive(cv->cond_lock);
+        ret = ETIMEDOUT;
+    }
+
+    /* Re-acquire user mutex */
+    pthread_mutex_lock(mutex);
+
+    /* Destroy personal semaphore */
+    vSemaphoreDelete(waiter.sem);
+
+    return ret;
+}
+
+/*
  * pthread_cond_signal — Wakes exactly one waiter (FIFO: the longest-waiting).
  *
  * Dequeues the head waiter node and gives its personal binary semaphore.
