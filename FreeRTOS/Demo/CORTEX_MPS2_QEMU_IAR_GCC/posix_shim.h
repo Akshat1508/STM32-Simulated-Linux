@@ -161,6 +161,20 @@ int pthread_mutex_lock(pthread_mutex_t *mutex);
 int pthread_mutex_trylock(pthread_mutex_t *mutex);
 
 /**
+ * @brief Locks a mutex with an absolute timeout limit.
+ *
+ * Blocks the calling thread until the mutex is acquired or until the absolute
+ * wall-clock time specified by abstime is reached. If the timeout expires
+ * prior to lock acquisition, returns ETIMEDOUT.
+ *
+ * @param[in,out] mutex   Pointer to the initialized mutex lock to acquire.
+ * @param[in]     abstime Absolute deadline time (struct timespec).
+ *
+ * @return 0 on success, ETIMEDOUT on deadline expiry, or EINVAL on invalid parameter.
+ */
+int pthread_mutex_timedlock(pthread_mutex_t *mutex, const struct timespec *abstime);
+
+/**
  * @brief Releases ownership of a previously acquired POSIX mutex lock.
  *
  * Gives back the underlying FreeRTOS mutex semaphore, unblocking the highest

@@ -394,6 +394,69 @@ int pthread_mutex_trylock(pthread_mutex_t *mutex)
 }
 
 /*
+ * pthread_mutex_timedlock — Locks mutex with an absolute timeout deadline.
+ *
+ * Translates the absolute timespec into FreeRTOS scheduler tick delta.
+ * Returns 0 on successful lock acquisition, ETIMEDOUT on deadline expiration,
+ * or EINVAL on invalid parameter.
+ */
+int pthread_mutex_timedlock(pthread_mutex_t *mutex, const struct timespec *abstime)
+{
+    if (mutex == NULL || *mutex == 0 || abstime == NULL) {
+        return EINVAL;
+    }
+
+    if (abstime->tv_nsec < 0 || abstime->tv_nsec >= 1000000000L) {
+        return EINVAL;
+    }
+
+    SemaphoreHandle_t xMutex = POSIX_MUTEX_HANDLE(*mutex);
+    if (xMutex == NULL) {
+        return EINVAL;
+    }
+
+    struct timespec now;
+    if (clock_gettime(CLOCK_REALTIME, &now) != 0) {
+        return EINVAL;
+    }
+
+    /* Check if timeout deadline has already elapsed */
+    if (now.tv_sec > abstime->tv_sec ||
+        (now.tv_sec == abstime->tv_sec && now.tv_nsec >= abstime->tv_nsec)) {
+        /* Deadline already passed: non-blocking attempt */
+        BaseType_t xTryResult;
+        if (POSIX_MUTEX_IS_RECURSIVE(*mutex)) {
+            xTryResult = xSemaphoreTakeRecursive(xMutex, 0);
+        } else {
+            xTryResult = xSemaphoreTake(xMutex, 0);
+        }
+        return (xTryResult == pdPASS) ? 0 : ETIMEDOUT;
+    }
+
+    /* Compute relative timeout duration in milliseconds */
+    int64_t sec_diff = (int64_t)abstime->tv_sec - (int64_t)now.tv_sec;
+    int64_t nsec_diff = (int64_t)abstime->tv_nsec - (int64_t)now.tv_nsec;
+    int64_t total_ms = (sec_diff * 1000LL) + (nsec_diff / 1000000LL);
+    if (total_ms < 0) {
+        total_ms = 0;
+    }
+
+    TickType_t xTicksToWait = pdMS_TO_TICKS(total_ms);
+    if (xTicksToWait == 0 && (sec_diff > 0 || nsec_diff > 0)) {
+        xTicksToWait = 1; /* Guarantee at least 1 tick wait */
+    }
+
+    BaseType_t xResult;
+    if (POSIX_MUTEX_IS_RECURSIVE(*mutex)) {
+        xResult = xSemaphoreTakeRecursive(xMutex, xTicksToWait);
+    } else {
+        xResult = xSemaphoreTake(xMutex, xTicksToWait);
+    }
+
+    return (xResult == pdPASS) ? 0 : ETIMEDOUT;
+}
+
+/*
  * pthread_mutex_unlock — Releases mutex ownership, waking any waiting thread.
  */
 int pthread_mutex_unlock(pthread_mutex_t *mutex)
