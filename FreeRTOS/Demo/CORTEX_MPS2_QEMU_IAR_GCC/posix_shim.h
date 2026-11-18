@@ -29,6 +29,23 @@
 #define CLOCK_MONOTONIC 4
 #endif
 
+/* Standard POSIX Mutex Types */
+#ifndef PTHREAD_MUTEX_NORMAL
+#define PTHREAD_MUTEX_NORMAL     0
+#endif
+
+#ifndef PTHREAD_MUTEX_RECURSIVE
+#define PTHREAD_MUTEX_RECURSIVE  1
+#endif
+
+#ifndef PTHREAD_MUTEX_ERRORCHECK
+#define PTHREAD_MUTEX_ERRORCHECK 2
+#endif
+
+#ifndef PTHREAD_MUTEX_DEFAULT
+#define PTHREAD_MUTEX_DEFAULT    3
+#endif
+
 /* LwIP BSD Socket Headers for Network Layer */
 #include "lwip/sockets.h"
 
@@ -123,13 +140,59 @@ pthread_t pthread_self(void);
  */
 
 /**
+ * @brief Initializes a mutex attributes object with default settings.
+ *
+ * Defaults mutex type to PTHREAD_MUTEX_NORMAL.
+ *
+ * @param[out] attr Pointer to pthread_mutexattr_t structure to initialize.
+ *
+ * @return 0 on success, or EINVAL if attr is NULL.
+ */
+int pthread_mutexattr_init(pthread_mutexattr_t *attr);
+
+/**
+ * @brief Destroys a mutex attributes object.
+ *
+ * @param[in,out] attr Pointer to initialized pthread_mutexattr_t structure.
+ *
+ * @return 0 on success, or EINVAL if attr is NULL or uninitialized.
+ */
+int pthread_mutexattr_destroy(pthread_mutexattr_t *attr);
+
+/**
+ * @brief Sets the mutex type in a mutex attributes object.
+ *
+ * Supported types:
+ *   - PTHREAD_MUTEX_NORMAL: Standard non-recursive mutex with priority inheritance.
+ *   - PTHREAD_MUTEX_RECURSIVE: Allows recursive locking by the owning thread.
+ *   - PTHREAD_MUTEX_ERRORCHECK: Error-checking mutex.
+ *
+ * @param[in,out] attr Pointer to initialized pthread_mutexattr_t structure.
+ * @param[in]     type Mutex type (PTHREAD_MUTEX_NORMAL or PTHREAD_MUTEX_RECURSIVE).
+ *
+ * @return 0 on success, or EINVAL on invalid parameter.
+ */
+int pthread_mutexattr_settype(pthread_mutexattr_t *attr, int type);
+
+/**
+ * @brief Retrieves the mutex type from a mutex attributes object.
+ *
+ * @param[in]  attr Pointer to initialized pthread_mutexattr_t structure.
+ * @param[out] type Pointer to store the extracted mutex type.
+ *
+ * @return 0 on success, or EINVAL on invalid parameter.
+ */
+int pthread_mutexattr_gettype(const pthread_mutexattr_t *attr, int *type);
+
+/**
  * @brief Initializes a POSIX mutual exclusion lock.
  *
  * Allocates a FreeRTOS mutex semaphore featuring priority inheritance to
- * mitigate priority inversion anomalies. Stores the handle in *mutex.
+ * mitigate priority inversion anomalies. If attr specifies PTHREAD_MUTEX_RECURSIVE,
+ * allocates a recursive mutex enabling nested lock acquisition by the owner.
  *
  * @param[out] mutex Pointer to the pthread_mutex_t variable to initialize.
- * @param[in]  attr  Mutex attributes pointer (currently unused; pass NULL).
+ * @param[in]  attr  Mutex attributes pointer (pass NULL for default normal mutex).
  *
  * @return 0 on successful initialization, or -1 on allocation failure.
  */

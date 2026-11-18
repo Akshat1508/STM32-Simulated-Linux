@@ -329,22 +329,92 @@ pthread_t pthread_self(void)
 #define POSIX_MUTEX_IS_RECURSIVE(m) (((uintptr_t)(m) & POSIX_MUTEX_TYPE_MASK) == POSIX_MUTEX_TYPE_RECURSIVE)
 
 /*
+ * pthread_mutexattr_init — Initializes a mutex attributes object with defaults.
+ */
+int pthread_mutexattr_init(pthread_mutexattr_t *attr)
+{
+    if (attr == NULL) {
+        return EINVAL;
+    }
+
+    attr->is_initialized = 1;
+    attr->recursive = PTHREAD_MUTEX_NORMAL;
+    return 0;
+}
+
+/*
+ * pthread_mutexattr_destroy — Destroys a mutex attributes object.
+ */
+int pthread_mutexattr_destroy(pthread_mutexattr_t *attr)
+{
+    if (attr == NULL || !attr->is_initialized) {
+        return EINVAL;
+    }
+
+    attr->is_initialized = 0;
+    return 0;
+}
+
+/*
+ * pthread_mutexattr_settype — Sets the mutex type in attributes object.
+ */
+int pthread_mutexattr_settype(pthread_mutexattr_t *attr, int type)
+{
+    if (attr == NULL || !attr->is_initialized) {
+        return EINVAL;
+    }
+
+    if (type != PTHREAD_MUTEX_NORMAL &&
+        type != PTHREAD_MUTEX_RECURSIVE &&
+        type != PTHREAD_MUTEX_ERRORCHECK) {
+        return EINVAL;
+    }
+
+    attr->recursive = type;
+    return 0;
+}
+
+/*
+ * pthread_mutexattr_gettype — Retrieves the mutex type from attributes object.
+ */
+int pthread_mutexattr_gettype(const pthread_mutexattr_t *attr, int *type)
+{
+    if (attr == NULL || !attr->is_initialized || type == NULL) {
+        return EINVAL;
+    }
+
+    *type = attr->recursive;
+    return 0;
+}
+
+/*
  * pthread_mutex_init — Creates a FreeRTOS priority-inheritance mutex.
+ *
+ * Inspects attr: if PTHREAD_MUTEX_RECURSIVE, creates a recursive mutex.
+ * Stores the mutex type tag in bit 0 of the handle.
  */
 int pthread_mutex_init(pthread_mutex_t *mutex, const pthread_mutexattr_t *attr)
 {
-    (void)attr; /* Default standard mutex behavior */
     if (mutex == NULL) {
         return -1;
     }
 
-    /* Create FreeRTOS mutex semaphore with priority inheritance */
-    SemaphoreHandle_t xMutex = xSemaphoreCreateMutex();
+    SemaphoreHandle_t xMutex;
+    uintptr_t type_tag = POSIX_MUTEX_TYPE_NORMAL;
+
+    if (attr != NULL && attr->is_initialized && attr->recursive == PTHREAD_MUTEX_RECURSIVE) {
+        xMutex = xSemaphoreCreateRecursiveMutex();
+        type_tag = POSIX_MUTEX_TYPE_RECURSIVE;
+    } else {
+        xMutex = xSemaphoreCreateMutex();
+        type_tag = POSIX_MUTEX_TYPE_NORMAL;
+    }
+
     if (xMutex == NULL) {
         return -1; /* Heap exhausted */
     }
 
-    *mutex = (pthread_mutex_t)(uintptr_t)xMutex;
+    *mutex = (pthread_mutex_t)((uintptr_t)xMutex | type_tag);
     return 0;
 }
 
@@ -353,17 +423,30 @@ int pthread_mutex_init(pthread_mutex_t *mutex, const pthread_mutexattr_t *attr)
  */
 int pthread_mutex_lock(pthread_mutex_t *mutex)
 {
-    if (mutex == NULL) {
+    if (mutex == NULL || *mutex == 0) {
         return -1;
     }
 
-    SemaphoreHandle_t xMutex = (SemaphoreHandle_t)(uintptr_t)*mutex;
+    /* Auto-initialize statically allocated mutex if initialized with PTHREAD_MUTEX_INITIALIZER */
+    if (*mutex == (pthread_mutex_t)0xFFFFFFFF) {
+        if (pthread_mutex_init(mutex, NULL) != 0) {
+            return -1;
+        }
+    }
+
+    SemaphoreHandle_t xMutex = POSIX_MUTEX_HANDLE(*mutex);
     if (xMutex == NULL) {
         return -1;
     }
 
-    /* Block indefinitely until mutex lock is acquired */
-    return (xSemaphoreTake(xMutex, portMAX_DELAY) == pdPASS) ? 0 : -1;
+    BaseType_t xResult;
+    if (POSIX_MUTEX_IS_RECURSIVE(*mutex)) {
+        xResult = xSemaphoreTakeRecursive(xMutex, portMAX_DELAY);
+    } else {
+        xResult = xSemaphoreTake(xMutex, portMAX_DELAY);
+    }
+
+    return (xResult == pdPASS) ? 0 : -1;
 }
 
 /*
@@ -461,17 +544,23 @@ int pthread_mutex_timedlock(pthread_mutex_t *mutex, const struct timespec *absti
  */
 int pthread_mutex_unlock(pthread_mutex_t *mutex)
 {
-    if (mutex == NULL) {
+    if (mutex == NULL || *mutex == 0) {
         return -1;
     }
 
-    SemaphoreHandle_t xMutex = (SemaphoreHandle_t)(uintptr_t)*mutex;
+    SemaphoreHandle_t xMutex = POSIX_MUTEX_HANDLE(*mutex);
     if (xMutex == NULL) {
         return -1;
     }
 
-    /* Release semaphore to next waiting task */
-    return (xSemaphoreGive(xMutex) == pdPASS) ? 0 : -1;
+    BaseType_t xResult;
+    if (POSIX_MUTEX_IS_RECURSIVE(*mutex)) {
+        xResult = xSemaphoreGiveRecursive(xMutex);
+    } else {
+        xResult = xSemaphoreGive(xMutex);
+    }
+
+    return (xResult == pdPASS) ? 0 : -1;
 }
 
 /*
@@ -483,7 +572,7 @@ int pthread_mutex_destroy(pthread_mutex_t *mutex)
         return -1;
     }
 
-    SemaphoreHandle_t xMutex = (SemaphoreHandle_t)(uintptr_t)*mutex;
+    SemaphoreHandle_t xMutex = POSIX_MUTEX_HANDLE(*mutex);
     if (xMutex != NULL) {
         vSemaphoreDelete(xMutex);
         *mutex = 0; /* Clear handle to prevent use-after-free */
