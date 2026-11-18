@@ -31,6 +31,9 @@
 #include "lwip/tcpip.h"
 #include "lwip/netif.h"
 
+/* Virtual File System & Unified Descriptor Table */
+#include "vfs.h"
+
 /* External hardware Ethernet driver initialization routine */
 err_t ethernetif_init(struct netif *netif);
 
@@ -314,14 +317,14 @@ void *web_server_thread(void *arg)
     /* Bind socket descriptor to port 80 */
     if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
         printf("[Web Server] Bind failed\n");
-        close(server_fd);
+        lwip_close(server_fd);
         return NULL;
     }
 
     /* Place socket into passive listening mode with connection backlog of 5 */
     if (listen(server_fd, 5) < 0) {
         printf("[Web Server] Listen failed\n");
-        close(server_fd);
+        lwip_close(server_fd);
         return NULL;
     }
 
@@ -343,7 +346,7 @@ void *web_server_thread(void *arg)
 
             char buffer[256];
             /* Read incoming HTTP request string */
-            int read_bytes = read(client_fd, buffer, sizeof(buffer) - 1);
+            int read_bytes = lwip_read(client_fd, buffer, sizeof(buffer) - 1);
             if (read_bytes > 0) {
                 buffer[read_bytes] = '\0';
 
@@ -364,17 +367,17 @@ void *web_server_thread(void *arg)
                     "</html>\n";
 
                 /* Transmit HTML payload over network interface */
-                write(client_fd, response, strlen(response));
+                lwip_write(client_fd, response, strlen(response));
             }
             /* Graceful TCP close (sends FIN packet) */
-            close(client_fd);
+            lwip_close(client_fd);
         } else {
             /* If non-blocking/error, yield execution briefly */
             usleep(100000);
         }
     }
 
-    close(server_fd);
+    lwip_close(server_fd);
     return NULL;
 }
 
@@ -431,13 +434,13 @@ void *client_socket_test_thread(void *arg)
         printf("[Client Test] FAILED: fcntl(F_GETFL)\n");
         all_passed = 0;
     } else {
-        /* Set O_NONBLOCK */
-        if (fcntl(sock, F_SETFL, O_NONBLOCK) != 0) {
+        /* Set O_NONBLOCK (LwIP socket layer expects 1) */
+        if (fcntl(sock, F_SETFL, 1) != 0) {
             printf("[Client Test] FAILED: fcntl(F_SETFL, O_NONBLOCK)\n");
             all_passed = 0;
         } else {
             int nb_flags = fcntl(sock, F_GETFL);
-            if (!(nb_flags & O_NONBLOCK)) {
+            if (!(nb_flags & 1)) {
                 printf("[Client Test] FAILED: O_NONBLOCK flag not set in fcntl\n");
                 all_passed = 0;
             } else {
@@ -458,7 +461,7 @@ void *client_socket_test_thread(void *arg)
     printf("[Client Test] Connecting to 127.0.0.1:80...\n");
     if (connect(sock, (struct sockaddr *)&srv_addr, sizeof(srv_addr)) != 0) {
         printf("[Client Test] FAILED: connect() to 127.0.0.1:80\n");
-        close(sock);
+        lwip_close(sock);
         return (void *)(uintptr_t)0;
     }
     printf("[Client Test] 4. connect() to HTTP server [PASSED]\n");
@@ -519,7 +522,7 @@ void *client_socket_test_thread(void *arg)
     }
 
     /* Step 9: Close client socket */
-    close(sock);
+    lwip_close(sock);
 
     printf("[Client Test] --- Milestone 2 Sockets Verification Summary: %s ---\n",
            all_passed ? "ALL TESTS PASSED" : "TESTS FAILED");
@@ -608,9 +611,13 @@ void *clock_timer_test_thread(void *arg)
         printf("[Clock Test] FAILED: nanosleep(500 us) returned %d\n", nano_ret);
         all_passed = 0;
     } else {
-        uint64_t ns_start = (uint64_t)ts_mono1.tv_sec * 1000000000ULL + (uint64_t)ts_mono1.tv_nsec;
-        uint64_t ns_end   = (uint64_t)ts_mono2.tv_sec * 1000000000ULL + (uint64_t)ts_mono2.tv_nsec;
-        uint64_t delta_ns = (ns_end >= ns_start) ? (ns_end - ns_start) : 0;
+        uint32_t d_sec = (uint32_t)(ts_mono2.tv_sec - ts_mono1.tv_sec);
+        int32_t d_nsec = (int32_t)(ts_mono2.tv_nsec - ts_mono1.tv_nsec);
+        if (d_nsec < 0) {
+            d_sec -= 1;
+            d_nsec += 1000000000L;
+        }
+        uint32_t delta_ns = d_sec * 1000000000UL + (uint32_t)d_nsec;
         printf("[Clock Test] 4a. nanosleep(500 us) elapsed: %u ns [PASSED]\n", (unsigned int)delta_ns);
     }
 
@@ -627,9 +634,13 @@ void *clock_timer_test_thread(void *arg)
         printf("[Clock Test] FAILED: nanosleep(50 ms) returned %d\n", nano_ret);
         all_passed = 0;
     } else {
-        uint64_t ns_start = (uint64_t)ts_mono1.tv_sec * 1000000000ULL + (uint64_t)ts_mono1.tv_nsec;
-        uint64_t ns_end   = (uint64_t)ts_mono2.tv_sec * 1000000000ULL + (uint64_t)ts_mono2.tv_nsec;
-        uint64_t delta_ms = ((ns_end >= ns_start) ? (ns_end - ns_start) : 0) / 1000000ULL;
+        uint32_t d_sec = (uint32_t)(ts_mono2.tv_sec - ts_mono1.tv_sec);
+        int32_t d_nsec = (int32_t)(ts_mono2.tv_nsec - ts_mono1.tv_nsec);
+        if (d_nsec < 0) {
+            d_sec -= 1;
+            d_nsec += 1000000000L;
+        }
+        uint32_t delta_ms = d_sec * 1000UL + (uint32_t)(d_nsec / 1000000L);
         printf("[Clock Test] 4b. nanosleep(50 ms) elapsed: %u ms [PASSED]\n", (unsigned int)delta_ms);
     }
 
@@ -651,9 +662,9 @@ static void *custom_stack_worker(void *arg)
     return (void *)(uintptr_t)val;
 }
 
-static void report_test(const char *name, int passed)
+static void report_test(const char *subsys, const char *name, int passed)
 {
-    printf("[Mutex Test] %s [%s]\n", name, passed ? "PASSED" : "FAILED");
+    printf("[%s Test] %s [%s]\n", subsys, name, passed ? "PASSED" : "FAILED");
 }
 
 /* ============================================================================
@@ -677,15 +688,15 @@ void *mutex_attr_test_thread(void *arg)
     pthread_mutex_t m1;
     if (pthread_mutex_init(&m1, NULL) == 0) {
         int ok1 = (pthread_mutex_trylock(&m1) == 0);
-        report_test("1a. trylock(unlocked)", ok1);
+        report_test("Mutex", "1a. trylock(unlocked)", ok1);
         all_passed &= ok1;
 
         int ok2 = (pthread_mutex_trylock(&m1) == EBUSY);
-        report_test("1b. trylock(locked)->EBUSY", ok2);
+        report_test("Mutex", "1b. trylock(locked)->EBUSY", ok2);
         all_passed &= ok2;
 
         int ok3 = (pthread_mutex_unlock(&m1) == 0);
-        report_test("1c. unlock()", ok3);
+        report_test("Mutex", "1c. unlock()", ok3);
         all_passed &= ok3;
 
         pthread_mutex_destroy(&m1);
@@ -702,7 +713,7 @@ void *mutex_attr_test_thread(void *arg)
             past_ts.tv_sec -= 1;
         }
         int ok_past = (pthread_mutex_timedlock(&m2, &past_ts) == ETIMEDOUT);
-        report_test("2a. timedlock(past)->ETIMEDOUT", ok_past);
+        report_test("Mutex", "2a. timedlock(past)->ETIMEDOUT", ok_past);
         all_passed &= ok_past;
 
         struct timespec future_ts;
@@ -713,7 +724,7 @@ void *mutex_attr_test_thread(void *arg)
             future_ts.tv_nsec -= 1000000000L;
         }
         int ok_busy = (pthread_mutex_timedlock(&m2, &future_ts) == ETIMEDOUT);
-        report_test("2b. timedlock(25ms)->ETIMEDOUT", ok_busy);
+        report_test("Mutex", "2b. timedlock(25ms)->ETIMEDOUT", ok_busy);
         all_passed &= ok_busy;
 
         pthread_mutex_unlock(&m2);
@@ -721,7 +732,7 @@ void *mutex_attr_test_thread(void *arg)
         clock_gettime(CLOCK_REALTIME, &future_ts);
         future_ts.tv_sec += 1;
         int ok_avail = (pthread_mutex_timedlock(&m2, &future_ts) == 0);
-        report_test("2c. timedlock(avail)", ok_avail);
+        report_test("Mutex", "2c. timedlock(avail)", ok_avail);
         all_passed &= ok_avail;
         if (ok_avail) {
             pthread_mutex_unlock(&m2);
@@ -736,13 +747,13 @@ void *mutex_attr_test_thread(void *arg)
         int mtype = -1;
         pthread_mutexattr_gettype(&mattr, &mtype);
         int ok_def = (mtype == PTHREAD_MUTEX_NORMAL);
-        report_test("3a. attr default NORMAL", ok_def);
+        report_test("Mutex", "3a. attr default NORMAL", ok_def);
         all_passed &= ok_def;
 
         int ok_set = (pthread_mutexattr_settype(&mattr, PTHREAD_MUTEX_RECURSIVE) == 0);
         pthread_mutexattr_gettype(&mattr, &mtype);
         int ok_rec = (ok_set && mtype == PTHREAD_MUTEX_RECURSIVE);
-        report_test("3b. attr set RECURSIVE", ok_rec);
+        report_test("Mutex", "3b. attr set RECURSIVE", ok_rec);
         all_passed &= ok_rec;
 
         pthread_mutex_t rec_m;
@@ -753,14 +764,14 @@ void *mutex_attr_test_thread(void *arg)
             int l2 = pthread_mutex_lock(&rec_m);
             int l3 = pthread_mutex_trylock(&rec_m);
             int ok_nest = (l1 == 0 && l2 == 0 && l3 == 0);
-            report_test("3c. recursive lock depth 3", ok_nest);
+            report_test("Mutex", "3c. recursive lock depth 3", ok_nest);
             all_passed &= ok_nest;
 
             int u1 = pthread_mutex_unlock(&rec_m);
             int u2 = pthread_mutex_unlock(&rec_m);
             int u3 = pthread_mutex_unlock(&rec_m);
             int ok_unwind = (u1 == 0 && u2 == 0 && u3 == 0);
-            report_test("3d. recursive unlock depth 3", ok_unwind);
+            report_test("Mutex", "3d. recursive unlock depth 3", ok_unwind);
             all_passed &= ok_unwind;
 
             pthread_mutex_destroy(&rec_m);
@@ -773,7 +784,7 @@ void *mutex_attr_test_thread(void *arg)
         size_t def_stack = 0;
         pthread_attr_getstacksize(&tattr, &def_stack);
         int ok_def_stk = (def_stack == 4096);
-        report_test("4a. attr default stack 4096 B", ok_def_stk);
+        report_test("Mutex", "4a. attr default stack 4096 B", ok_def_stk);
         all_passed &= ok_def_stk;
 
         size_t custom_target = 2048;
@@ -781,11 +792,11 @@ void *mutex_attr_test_thread(void *arg)
         size_t queried = 0;
         pthread_attr_getstacksize(&tattr, &queried);
         int ok_custom_stk = (queried == custom_target);
-        report_test("4b. attr custom stack 2048 B", ok_custom_stk);
+        report_test("Mutex", "4b. attr custom stack 2048 B", ok_custom_stk);
         all_passed &= ok_custom_stk;
 
         int ok_inval = (pthread_attr_setstacksize(&tattr, 16) == EINVAL);
-        report_test("4c. reject small stack EINVAL", ok_inval);
+        report_test("Mutex", "4c. reject small stack EINVAL", ok_inval);
         all_passed &= ok_inval;
 
         pthread_attr_setstacksize(&tattr, custom_target);
@@ -795,7 +806,7 @@ void *mutex_attr_test_thread(void *arg)
             pthread_attr_destroy(&tattr);
             pthread_join(custom_tid, &custom_ret);
             int ok_thread = ((int)(uintptr_t)custom_ret == 42);
-            report_test("4d. thread custom stack join", ok_thread);
+            report_test("Mutex", "4d. thread custom stack join", ok_thread);
             all_passed &= ok_thread;
         } else {
             pthread_attr_destroy(&tattr);
@@ -803,6 +814,148 @@ void *mutex_attr_test_thread(void *arg)
     }
 
     printf("[Mutex Test] --- Milestone 4 Verification Summary: %s ---\n",
+           all_passed ? "ALL TESTS PASSED" : "TESTS FAILED");
+
+    return (void *)(uintptr_t)all_passed;
+}
+
+/* ============================================================================
+ * Virtual File System (VFS) Test Thread: Milestone 5 Verification Suite
+ *
+ * Validates the unified file descriptor table and POSIX I/O operations (Group E):
+ *   5a. open() & close(): In-memory RAM file creation and existence checks (O_CREAT, O_EXCL)
+ *   5b. write(), lseek(), read(): Offset positioning and data roundtrip
+ *   5c. stat() & fstat(): Synthetic metadata and file size inspection
+ *   5d. pipe(): Inter-thread communication, non-blocking/blocking, and EOF semantics
+ *   5e. dup2(): Descriptor cloning and shared reference count persistence
+ *   5f. vfs_register_socket(): Unified routing of socket descriptors in 3..15
+ * ============================================================================
+ */
+void *vfs_test_thread(void *arg)
+{
+    (void)arg;
+    int all_passed = 1;
+
+    printf("[VFS Test] --- Starting Milestone 5 VFS Layer Verification ---\n");
+
+    /* 5a. RAM file open, create, and close */
+    int fd = open("/tmp/m5_test.txt", O_CREAT | O_RDWR | O_TRUNC, 0644);
+    int ok_open = (fd >= VFS_USER_BASE_FD && fd <= VFS_USER_MAX_FD);
+    report_test("VFS", "5a. open(O_CREAT|O_RDWR)", ok_open);
+    all_passed &= ok_open;
+
+    int excl_fd = open("/tmp/m5_test.txt", O_CREAT | O_EXCL | O_RDWR, 0644);
+    int ok_excl = (excl_fd == -1 && errno == EEXIST);
+    report_test("VFS", "5a. open(O_CREAT|O_EXCL)->EEXIST", ok_excl);
+    all_passed &= ok_excl;
+
+    /* 5b. write(), lseek(), read() */
+    const char *payload = "Hello STM32 VFS Layer!";
+    size_t payload_len = strlen(payload);
+    ssize_t bytes_written = write(fd, payload, payload_len);
+    int ok_write = (bytes_written == (ssize_t)payload_len);
+    report_test("VFS", "5b. write() payload", ok_write);
+    all_passed &= ok_write;
+
+    off_t seek_res = lseek(fd, 0, SEEK_SET);
+    int ok_seek0 = (seek_res == 0);
+    report_test("VFS", "5b. lseek(SEEK_SET, 0)", ok_seek0);
+    all_passed &= ok_seek0;
+
+    char r_buf[32] = {0};
+    ssize_t bytes_read = read(fd, r_buf, sizeof(r_buf) - 1);
+    int ok_read = (bytes_read == (ssize_t)payload_len && strcmp(r_buf, payload) == 0);
+    report_test("VFS", "5b. read() full payload", ok_read);
+    all_passed &= ok_read;
+
+    lseek(fd, 6, SEEK_SET);
+    char sub_buf[16] = {0};
+    read(fd, sub_buf, 5);
+    int ok_sub = (strcmp(sub_buf, "STM32") == 0);
+    report_test("VFS", "5b. lseek()+read() substring", ok_sub);
+    all_passed &= ok_sub;
+
+    close(fd);
+
+    /* 5c. stat() & fstat() */
+    struct stat st;
+    int st_ret = stat("/tmp/m5_test.txt", &st);
+    int ok_stat = (st_ret == 0 && st.st_size == (off_t)payload_len && (st.st_mode & S_IFREG) != 0);
+    report_test("VFS", "5c. stat(pathname)", ok_stat);
+    all_passed &= ok_stat;
+
+    int fd_stat = open("/tmp/m5_test.txt", O_RDONLY);
+    struct stat fst;
+    int fst_ret = fstat(fd_stat, &fst);
+    int ok_fstat = (fst_ret == 0 && fst.st_size == (off_t)payload_len);
+    report_test("VFS", "5c. fstat(fd)", ok_fstat);
+    all_passed &= ok_fstat;
+    close(fd_stat);
+
+    /* 5d. pipe() communication and EOF */
+    int pfd[2] = {-1, -1};
+    int pipe_ret = pipe(pfd);
+    int ok_pipe_create = (pipe_ret == 0 && pfd[0] >= VFS_USER_BASE_FD && pfd[1] >= VFS_USER_BASE_FD && pfd[0] != pfd[1]);
+    report_test("VFS", "5d. pipe() allocation", ok_pipe_create);
+    all_passed &= ok_pipe_create;
+
+    if (ok_pipe_create) {
+        const char *pipe_msg = "PipeIPCData";
+        ssize_t pw = write(pfd[1], pipe_msg, strlen(pipe_msg));
+        char pr_buf[16] = {0};
+        ssize_t pr = read(pfd[0], pr_buf, sizeof(pr_buf) - 1);
+        int ok_pipe_rw = (pw == (ssize_t)strlen(pipe_msg) && pr == pw && strcmp(pr_buf, pipe_msg) == 0);
+        report_test("VFS", "5d. pipe write()->read() IPC", ok_pipe_rw);
+        all_passed &= ok_pipe_rw;
+
+        close(pfd[1]); /* Close writer */
+        ssize_t pr_eof = read(pfd[0], pr_buf, sizeof(pr_buf));
+        int ok_eof = (pr_eof == 0); /* Reader gets EOF when all writers are closed */
+        report_test("VFS", "5d. pipe EOF on writer close", ok_eof);
+        all_passed &= ok_eof;
+
+        close(pfd[0]); /* Close reader */
+    }
+
+    /* 5e. dup2() descriptor cloning and reference persistence */
+    int d_orig = open("/tmp/m5_test.txt", O_RDONLY);
+    int d_target = 26;
+    int d_dup = dup2(d_orig, d_target);
+    int ok_dup = (d_dup == d_target);
+    report_test("VFS", "5e. dup2(orig, 26)", ok_dup);
+    all_passed &= ok_dup;
+
+    char d_buf1[8] = {0};
+    read(d_target, d_buf1, 5);
+    int ok_dup_r1 = (strncmp(d_buf1, "Hello", 5) == 0);
+    report_test("VFS", "5e. read() from dup2 fd", ok_dup_r1);
+    all_passed &= ok_dup_r1;
+
+    close(d_orig); /* Closing original descriptor must NOT invalidate cloned descriptor */
+    char d_buf2[8] = {0};
+    read(d_target, d_buf2, 5);
+    int ok_dup_r2 = (strncmp(d_buf2, " STM3", 5) == 0);
+    report_test("VFS", "5e. read() after orig closed", ok_dup_r2);
+    all_passed &= ok_dup_r2;
+
+    close(d_target);
+
+    /* 5f. vfs_register_socket() unified socket range 3..15 */
+    int raw_s = socket(AF_INET, SOCK_STREAM, 0);
+    int vfs_s = vfs_register_socket(raw_s);
+    int ok_sock = (vfs_s >= VFS_SOCKET_BASE_FD && vfs_s <= VFS_SOCKET_MAX_FD);
+    report_test("VFS", "5f. vfs_register_socket(3..15)", ok_sock);
+    all_passed &= ok_sock;
+
+    struct stat s_st;
+    int s_st_ret = fstat(vfs_s, &s_st);
+    int ok_sock_st = (s_st_ret == 0 && (s_st.st_mode & S_IFSOCK) != 0);
+    report_test("VFS", "5f. fstat(socket)->S_IFSOCK", ok_sock_st);
+    all_passed &= ok_sock_st;
+
+    close(vfs_s); /* Routes to lwip_close */
+
+    printf("[VFS Test] --- Milestone 5 Verification Summary: %s ---\n",
            all_passed ? "ALL TESTS PASSED" : "TESTS FAILED");
 
     return (void *)(uintptr_t)all_passed;
@@ -975,6 +1128,19 @@ void *main_posix_app(void *arg)
         pthread_join(mutex_test, &mutex_test_status);
         printf("[Main] Mutex & Attr Test joined with status: %s\n",
                ((int)(uintptr_t)mutex_test_status == 1) ? "PASSED" : "FAILED");
+    }
+
+    /* Spawn Milestone 5 Virtual File System (VFS) Verification Thread */
+    pthread_t vfs_test;
+    void *vfs_test_status = NULL;
+    printf("[Main] --- Spawning Milestone 5 VFS Verification Thread ---\n");
+    if (pthread_create(&vfs_test, NULL, vfs_test_thread, NULL) != 0) {
+        printf("[Main] Failed to create VFS Test thread\n");
+    } else {
+        printf("[Main] Joining VFS Test...\n");
+        pthread_join(vfs_test, &vfs_test_status);
+        printf("[Main] VFS Test joined with status: %s\n",
+               ((int)(uintptr_t)vfs_test_status == 1) ? "PASSED" : "FAILED");
     }
 
     /*
