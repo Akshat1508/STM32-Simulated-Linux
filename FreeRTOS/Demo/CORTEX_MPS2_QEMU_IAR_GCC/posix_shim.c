@@ -828,3 +828,17 @@ int sem_destroy(sem_t *sem)
     }
     return 0;
 }
+
+/* ============================================================================
+ * BSD Socket Networking & Non-Blocking I/O API Implementations (Group C)
+ * ============================================================================
+ */
+
+/*
+ * connect — Initiates an outbound TCP connection or sets UDP default peer.
+ */
+#undef connect
+int connect(int s, const struct sockaddr *name, socklen_t namelen)
+{
+    return lwip_connect(s, name, namelen);
+}

@@ -19,6 +19,9 @@
 #include <errno.h>     /* Provides ETIMEDOUT and standard error codes */
 #include <time.h>      /* Provides struct timespec for timed operations */
 
+/* LwIP BSD Socket Headers for Network Layer */
+#include "lwip/sockets.h"
+
 /*
  * ----------------------------------------------------------------------------
  * Type Definition: sem_t
@@ -328,5 +331,27 @@ int sem_post(sem_t *sem);
  * @return 0 on success, or -1 on error.
  */
 int sem_destroy(sem_t *sem);
+
+/* ============================================================================
+ * BSD Socket Networking & Non-Blocking I/O API (Group C)
+ * ============================================================================
+ */
+
+/**
+ * @brief Initiates a connection on a socket to a specified remote peer.
+ *
+ * Maps to LwIP lwip_connect(). Enables outbound TCP client connections
+ * (e.g. connecting to external servers, HTTP client, telemetry) or sets
+ * the default remote peer address on UDP sockets.
+ *
+ * @param[in] s       Socket descriptor returned by socket().
+ * @param[in] name    Pointer to sockaddr structure with remote IP and port.
+ * @param[in] namelen Size in bytes of the sockaddr structure.
+ *
+ * @return 0 on success, or -1 on error.
+ */
+#ifndef connect
+int connect(int s, const struct sockaddr *name, socklen_t namelen);
+#endif
 
 #endif /* POSIX_SHIM_H */
