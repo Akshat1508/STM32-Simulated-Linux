@@ -593,11 +593,21 @@ int pthread_mutex_timedlock(pthread_mutex_t *mutex, const struct timespec *absti
     }
 
     /* Compute relative timeout duration in milliseconds */
-    int64_t sec_diff = (int64_t)abstime->tv_sec - (int64_t)now.tv_sec;
-    int64_t nsec_diff = (int64_t)abstime->tv_nsec - (int64_t)now.tv_nsec;
-    int64_t total_ms = (sec_diff * 1000LL) + (nsec_diff / 1000000LL);
-    if (total_ms < 0) {
-        total_ms = 0;
+    int32_t sec_diff = (int32_t)(abstime->tv_sec - now.tv_sec);
+    int32_t nsec_diff = (int32_t)(abstime->tv_nsec - now.tv_nsec);
+    uint32_t total_ms = 0;
+    if (sec_diff > 0) {
+        total_ms = (uint32_t)sec_diff * 1000UL;
+    }
+    if (nsec_diff > 0) {
+        total_ms += (uint32_t)nsec_diff / 1000000UL;
+    } else if (nsec_diff < 0) {
+        uint32_t sub_ms = (uint32_t)(-nsec_diff) / 1000000UL;
+        if (total_ms >= sub_ms) {
+            total_ms -= sub_ms;
+        } else {
+            total_ms = 0;
+        }
     }
 
     TickType_t xTicksToWait = pdMS_TO_TICKS(total_ms);

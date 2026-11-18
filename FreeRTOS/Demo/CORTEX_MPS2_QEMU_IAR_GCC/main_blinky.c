@@ -639,6 +639,175 @@ void *clock_timer_test_thread(void *arg)
     return (void *)(uintptr_t)all_passed;
 }
 
+/*
+ * Custom Stack Worker Thread: Verifies execution under custom stack depth.
+ */
+static void *custom_stack_worker(void *arg)
+{
+    int val = (int)(uintptr_t)arg;
+    /* Touch local stack frame to ensure stack allocation is operational */
+    volatile int stack_var = val + 10;
+    (void)stack_var;
+    return (void *)(uintptr_t)val;
+}
+
+static void report_test(const char *name, int passed)
+{
+    printf("[Mutex Test] %s [%s]\n", name, passed ? "PASSED" : "FAILED");
+}
+
+/* ============================================================================
+ * Mutex & Thread Attributes Test Thread: Milestone 4 Verification Suite
+ *
+ * Exercises and verifies the 4 newly implemented Group D APIs:
+ *   1. pthread_mutex_trylock(): Non-blocking lock acquisition and EBUSY check.
+ *   2. pthread_mutex_timedlock(): Deadline timeout (ETIMEDOUT) and acquisition.
+ *   3. pthread_mutexattr_*(): Mutex attribute lifecycle and recursive locking.
+ *   4. pthread_attr_*(): Thread attribute lifecycle and custom stack depth.
+ * ============================================================================
+ */
+void *mutex_attr_test_thread(void *arg)
+{
+    (void)arg;
+    int all_passed = 1;
+
+    printf("[Mutex Test] --- Starting Milestone 4 Verification ---\n");
+
+    /* Sub-test 1: pthread_mutex_trylock() */
+    pthread_mutex_t m1;
+    if (pthread_mutex_init(&m1, NULL) == 0) {
+        int ok1 = (pthread_mutex_trylock(&m1) == 0);
+        report_test("1a. trylock(unlocked)", ok1);
+        all_passed &= ok1;
+
+        int ok2 = (pthread_mutex_trylock(&m1) == EBUSY);
+        report_test("1b. trylock(locked)->EBUSY", ok2);
+        all_passed &= ok2;
+
+        int ok3 = (pthread_mutex_unlock(&m1) == 0);
+        report_test("1c. unlock()", ok3);
+        all_passed &= ok3;
+
+        pthread_mutex_destroy(&m1);
+    }
+
+    /* Sub-test 2: pthread_mutex_timedlock() */
+    pthread_mutex_t m2;
+    if (pthread_mutex_init(&m2, NULL) == 0) {
+        pthread_mutex_lock(&m2);
+
+        struct timespec past_ts;
+        clock_gettime(CLOCK_REALTIME, &past_ts);
+        if (past_ts.tv_sec > 0) {
+            past_ts.tv_sec -= 1;
+        }
+        int ok_past = (pthread_mutex_timedlock(&m2, &past_ts) == ETIMEDOUT);
+        report_test("2a. timedlock(past)->ETIMEDOUT", ok_past);
+        all_passed &= ok_past;
+
+        struct timespec future_ts;
+        clock_gettime(CLOCK_REALTIME, &future_ts);
+        future_ts.tv_nsec += 25000000L; /* +25 ms */
+        if (future_ts.tv_nsec >= 1000000000L) {
+            future_ts.tv_sec += 1;
+            future_ts.tv_nsec -= 1000000000L;
+        }
+        int ok_busy = (pthread_mutex_timedlock(&m2, &future_ts) == ETIMEDOUT);
+        report_test("2b. timedlock(25ms)->ETIMEDOUT", ok_busy);
+        all_passed &= ok_busy;
+
+        pthread_mutex_unlock(&m2);
+
+        clock_gettime(CLOCK_REALTIME, &future_ts);
+        future_ts.tv_sec += 1;
+        int ok_avail = (pthread_mutex_timedlock(&m2, &future_ts) == 0);
+        report_test("2c. timedlock(avail)", ok_avail);
+        all_passed &= ok_avail;
+        if (ok_avail) {
+            pthread_mutex_unlock(&m2);
+        }
+
+        pthread_mutex_destroy(&m2);
+    }
+
+    /* Sub-test 3: pthread_mutexattr_*() and Recursive Mutex */
+    pthread_mutexattr_t mattr;
+    if (pthread_mutexattr_init(&mattr) == 0) {
+        int mtype = -1;
+        pthread_mutexattr_gettype(&mattr, &mtype);
+        int ok_def = (mtype == PTHREAD_MUTEX_NORMAL);
+        report_test("3a. attr default NORMAL", ok_def);
+        all_passed &= ok_def;
+
+        int ok_set = (pthread_mutexattr_settype(&mattr, PTHREAD_MUTEX_RECURSIVE) == 0);
+        pthread_mutexattr_gettype(&mattr, &mtype);
+        int ok_rec = (ok_set && mtype == PTHREAD_MUTEX_RECURSIVE);
+        report_test("3b. attr set RECURSIVE", ok_rec);
+        all_passed &= ok_rec;
+
+        pthread_mutex_t rec_m;
+        if (pthread_mutex_init(&rec_m, &mattr) == 0) {
+            pthread_mutexattr_destroy(&mattr);
+
+            int l1 = pthread_mutex_lock(&rec_m);
+            int l2 = pthread_mutex_lock(&rec_m);
+            int l3 = pthread_mutex_trylock(&rec_m);
+            int ok_nest = (l1 == 0 && l2 == 0 && l3 == 0);
+            report_test("3c. recursive lock depth 3", ok_nest);
+            all_passed &= ok_nest;
+
+            int u1 = pthread_mutex_unlock(&rec_m);
+            int u2 = pthread_mutex_unlock(&rec_m);
+            int u3 = pthread_mutex_unlock(&rec_m);
+            int ok_unwind = (u1 == 0 && u2 == 0 && u3 == 0);
+            report_test("3d. recursive unlock depth 3", ok_unwind);
+            all_passed &= ok_unwind;
+
+            pthread_mutex_destroy(&rec_m);
+        }
+    }
+
+    /* Sub-test 4: pthread_attr_*() and Custom Stack Depth */
+    pthread_attr_t tattr;
+    if (pthread_attr_init(&tattr) == 0) {
+        size_t def_stack = 0;
+        pthread_attr_getstacksize(&tattr, &def_stack);
+        int ok_def_stk = (def_stack == 4096);
+        report_test("4a. attr default stack 4096 B", ok_def_stk);
+        all_passed &= ok_def_stk;
+
+        size_t custom_target = 2048;
+        pthread_attr_setstacksize(&tattr, custom_target);
+        size_t queried = 0;
+        pthread_attr_getstacksize(&tattr, &queried);
+        int ok_custom_stk = (queried == custom_target);
+        report_test("4b. attr custom stack 2048 B", ok_custom_stk);
+        all_passed &= ok_custom_stk;
+
+        int ok_inval = (pthread_attr_setstacksize(&tattr, 16) == EINVAL);
+        report_test("4c. reject small stack EINVAL", ok_inval);
+        all_passed &= ok_inval;
+
+        pthread_attr_setstacksize(&tattr, custom_target);
+        pthread_t custom_tid;
+        void *custom_ret = NULL;
+        if (pthread_create(&custom_tid, &tattr, custom_stack_worker, (void *)(uintptr_t)42) == 0) {
+            pthread_attr_destroy(&tattr);
+            pthread_join(custom_tid, &custom_ret);
+            int ok_thread = ((int)(uintptr_t)custom_ret == 42);
+            report_test("4d. thread custom stack join", ok_thread);
+            all_passed &= ok_thread;
+        } else {
+            pthread_attr_destroy(&tattr);
+        }
+    }
+
+    printf("[Mutex Test] --- Milestone 4 Verification Summary: %s ---\n",
+           all_passed ? "ALL TESTS PASSED" : "TESTS FAILED");
+
+    return (void *)(uintptr_t)all_passed;
+}
+
 /* ============================================================================
  * Master Application Thread: main_posix_app
  *
@@ -793,6 +962,19 @@ void *main_posix_app(void *arg)
         pthread_join(clock_test, &clock_test_status);
         printf("[Main] Clock & Timer Test joined with status: %s\n",
                ((int)(uintptr_t)clock_test_status == 1) ? "PASSED" : "FAILED");
+    }
+
+    /* Spawn Milestone 4 Extended Mutex & Thread Attributes Verification Thread */
+    pthread_t mutex_test;
+    void *mutex_test_status = NULL;
+    printf("[Main] --- Spawning Milestone 4 Mutex & Attributes Verification Thread ---\n");
+    if (pthread_create(&mutex_test, NULL, mutex_attr_test_thread, NULL) != 0) {
+        printf("[Main] Failed to create Mutex & Attr Test thread\n");
+    } else {
+        printf("[Main] Joining Mutex & Attr Test...\n");
+        pthread_join(mutex_test, &mutex_test_status);
+        printf("[Main] Mutex & Attr Test joined with status: %s\n",
+               ((int)(uintptr_t)mutex_test_status == 1) ? "PASSED" : "FAILED");
     }
 
     /*
