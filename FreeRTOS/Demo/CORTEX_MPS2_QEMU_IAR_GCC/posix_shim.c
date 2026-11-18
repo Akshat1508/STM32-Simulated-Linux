@@ -497,6 +497,41 @@ int pthread_cond_signal(pthread_cond_t *cond)
 }
 
 /*
+ * pthread_cond_broadcast — Wakes all threads currently waiting on the
+ * condition variable by iterating the entire waiter queue.
+ */
+int pthread_cond_broadcast(pthread_cond_t *cond)
+{
+    if (cond == NULL) {
+        return -1;
+    }
+
+    posix_cond_t *cv = (posix_cond_t *)(uintptr_t)*cond;
+    if (cv == NULL) {
+        return -1;
+    }
+
+    /* Lock internal queue */
+    xSemaphoreTake(cv->cond_lock, portMAX_DELAY);
+
+    /* Wake every waiter in the queue */
+    posix_cond_waiter_t *w = cv->head;
+    while (w != NULL) {
+        posix_cond_waiter_t *next = w->next;
+        w->next = NULL;
+        xSemaphoreGive(w->sem);
+        w = next;
+    }
+
+    /* Reset queue to empty */
+    cv->head = NULL;
+    cv->tail = NULL;
+
+    xSemaphoreGive(cv->cond_lock);
+    return 0;
+}
+
+/*
  * pthread_cond_destroy — Frees the internal lock and control block.
  * Must not be called while any thread is waiting on the condition variable.
  */
