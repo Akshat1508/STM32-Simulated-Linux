@@ -292,6 +292,21 @@ int clock_gettime(clockid_t clk_id, struct timespec *tp);
 int gettimeofday(struct timeval *tv, void *tz);
 
 /**
+ * @brief High-resolution sleep with nanosecond precision.
+ *
+ * Suspends execution of the calling thread for the duration specified in req.
+ * If the duration is at least 1 millisecond, blocks the task using FreeRTOS
+ * vTaskDelay() to yield the CPU with 0% processor waste. For sub-millisecond
+ * residual delays, loops against the ARM Cortex-M SysTick down-counter.
+ *
+ * @param[in]  req Requested duration to sleep (tv_sec, tv_nsec).
+ * @param[out] rem Pointer to struct timespec to store remaining time if interrupted (may be NULL).
+ *
+ * @return 0 on success, or -1 on error (with errno set to EINVAL or EFAULT).
+ */
+int nanosleep(const struct timespec *req, struct timespec *rem);
+
+/**
  * @brief Suspends execution of the calling thread for a specified number of seconds.
  *
  * Translates seconds into system timer ticks (configTICK_RATE_HZ) and invokes

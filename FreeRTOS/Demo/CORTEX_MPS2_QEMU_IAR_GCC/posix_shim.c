@@ -809,6 +809,64 @@ int _gettimeofday(struct timeval *tv, void *tz)
 }
 
 /*
+ * nanosleep — High-resolution hybrid sleep with FreeRTOS task delay and SysTick spin.
+ */
+int nanosleep(const struct timespec *req, struct timespec *rem)
+{
+    if (req == NULL) {
+        errno = EFAULT;
+        return -1;
+    }
+
+    if (req->tv_sec < 0 || req->tv_nsec < 0 || req->tv_nsec >= 1000000000L) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    /* Total whole milliseconds */
+    uint64_t total_ms = (uint64_t)req->tv_sec * 1000ULL + (uint64_t)(req->tv_nsec / 1000000L);
+    uint32_t residual_ns = (uint32_t)(req->tv_nsec % 1000000L);
+
+    /* Coarse delay: yield CPU to other tasks via scheduler */
+    if (total_ms > 0) {
+        TickType_t ticks = pdMS_TO_TICKS(total_ms);
+        if (ticks > 0) {
+            vTaskDelay(ticks);
+        }
+    }
+
+    /* Fine sub-millisecond delay: busy loop using SysTick counter */
+    if (residual_ns > 0) {
+        uint32_t cycles_to_wait = ((uint64_t)residual_ns * (uint64_t)configCPU_CLOCK_HZ) / 1000000000ULL;
+        uint32_t load = SysTick->LOAD;
+        if (load == 0) {
+            load = (configCPU_CLOCK_HZ / configTICK_RATE_HZ) - 1UL;
+        }
+
+        uint32_t last_val = SysTick->VAL;
+        uint32_t elapsed_cycles = 0;
+
+        while (elapsed_cycles < cycles_to_wait) {
+            uint32_t current_val = SysTick->VAL;
+            if (current_val <= last_val) {
+                elapsed_cycles += (last_val - current_val);
+            } else {
+                /* Counter reloaded / wrapped around */
+                elapsed_cycles += (last_val + (load - current_val));
+            }
+            last_val = current_val;
+        }
+    }
+
+    if (rem != NULL) {
+        rem->tv_sec  = 0;
+        rem->tv_nsec = 0;
+    }
+
+    return 0;
+}
+
+/*
  * sleep — Suspends thread execution for given seconds.
  */
 unsigned int sleep(unsigned int seconds)
