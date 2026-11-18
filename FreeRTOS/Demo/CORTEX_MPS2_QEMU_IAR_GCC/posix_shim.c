@@ -860,3 +860,12 @@ int recv(int s, void *mem, size_t len, int flags)
 {
     return lwip_recv(s, mem, len, flags);
 }
+
+/*
+ * setsockopt — Configures socket options (SO_REUSEADDR, SO_RCVTIMEO, etc.).
+ */
+#undef setsockopt
+int setsockopt(int s, int level, int optname, const void *optval, socklen_t optlen)
+{
+    return lwip_setsockopt(s, level, optname, optval, optlen);
+}

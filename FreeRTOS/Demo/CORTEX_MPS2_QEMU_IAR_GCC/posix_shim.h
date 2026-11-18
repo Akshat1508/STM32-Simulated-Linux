@@ -388,4 +388,23 @@ int send(int s, const void *dataptr, size_t size, int flags);
 int recv(int s, void *mem, size_t len, int flags);
 #endif
 
+/**
+ * @brief Sets options associated with a socket descriptor.
+ *
+ * Maps to LwIP lwip_setsockopt(). Configures socket behavior including
+ * SO_REUSEADDR (reuse local addresses), SO_RCVTIMEO (receive timeout),
+ * and TCP_NODELAY (disable Nagle algorithm for latency reduction).
+ *
+ * @param[in] s       Socket descriptor.
+ * @param[in] level   Protocol level (e.g. SOL_SOCKET, IPPROTO_TCP).
+ * @param[in] optname Option name (e.g. SO_REUSEADDR, SO_RCVTIMEO).
+ * @param[in] optval  Pointer to buffer containing the option setting.
+ * @param[in] optlen  Size in bytes of the option buffer.
+ *
+ * @return 0 on success, or -1 on error.
+ */
+#ifndef setsockopt
+int setsockopt(int s, int level, int optname, const void *optval, socklen_t optlen);
+#endif
+
 #endif /* POSIX_SHIM_H */
