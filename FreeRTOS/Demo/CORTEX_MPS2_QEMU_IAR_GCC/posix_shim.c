@@ -5,16 +5,20 @@
  * Target Platform: ARM Cortex-M (QEMU MPS2 AN385 / Cortex-M3 / STM32)
  *
  * Maps standard UNIX/POSIX APIs to native FreeRTOS kernel primitives:
- *   - Thread Lifecycle : pthread_create, pthread_join, pthread_exit,
- *                        pthread_detach, pthread_self
- *   - Mutual Exclusion : pthread_mutex_init, pthread_mutex_lock,
- *                        pthread_mutex_unlock, pthread_mutex_destroy
- *   - Semaphores       : sem_init, sem_wait, sem_post, sem_destroy
- *   - Timing & Delays  : sleep, usleep
+ *   - Thread Lifecycle    : pthread_create, pthread_join, pthread_exit,
+ *                           pthread_detach, pthread_self
+ *   - Mutual Exclusion    : pthread_mutex_init, pthread_mutex_lock,
+ *                           pthread_mutex_unlock, pthread_mutex_destroy
+ *   - Condition Variables : pthread_cond_init, pthread_cond_wait,
+ *                           pthread_cond_timedwait, pthread_cond_signal,
+ *                           pthread_cond_broadcast, pthread_cond_destroy
+ *   - Semaphores          : sem_init, sem_wait, sem_post, sem_destroy
+ *   - Timing & Delays     : sleep, usleep
  *
  * Implementation Design:
  *   - All thread descriptors are managed via a singly-linked list (g_thread_list).
  *   - Mutexes leverage FreeRTOS Priority Inheritance to prevent Priority Inversion.
+ *   - Condition variables use a per-waiter semaphore queue for precise wakeups.
  *   - Semaphores wrap FreeRTOS counting semaphores with 65535 max count.
  *   - Critical sections use taskENTER_CRITICAL() / taskEXIT_CRITICAL() (BASEPRI).
  * ============================================================================
@@ -381,9 +385,79 @@ int pthread_mutex_destroy(pthread_mutex_t *mutex)
 }
 
 /* ============================================================================
- * POSIX Timing API Implementations
+ * POSIX Condition Variable API Implementations
+ *
+ * Condition variables allow threads to atomically release a mutex and sleep
+ * until signaled, avoiding CPU-wasting busy polling loops.
+ *
+ * Internal Design:
+ *   - Each condition variable maintains a linked list of waiter nodes.
+ *   - Each waiter carries its own binary semaphore for precise, targeted wakeup.
+ *   - An internal FreeRTOS mutex (cond_lock) serializes access to the waiter queue.
+ *   - pthread_cond_signal dequeues and wakes exactly one waiter (FIFO order).
+ *   - pthread_cond_broadcast wakes all waiters by iterating the entire queue.
+ *
+ * Memory Layout (posix_cond_t allocated from heap_4.c):
+ *   +------------------------------------------------------+
+ *   | cond_lock (SemaphoreHandle_t) — guards waiter list    |
+ *   | head -> [waiter_node] -> [waiter_node] -> NULL        |
+ *   | tail -> [last waiter_node]                            |
+ *   +------------------------------------------------------+
  * ============================================================================
  */
+
+/*
+ * Internal waiter node: one per thread blocked in pthread_cond_wait/timedwait.
+ * Allocated on the waiting thread's stack (not heap) since the node's lifetime
+ * is bounded by the wait call that creates it.
+ */
+typedef struct posix_cond_waiter {
+    SemaphoreHandle_t           sem;    /* Binary semaphore for this waiter */
+    struct posix_cond_waiter   *next;   /* Next waiter in FIFO queue */
+} posix_cond_waiter_t;
+
+/*
+ * Internal condition variable control block, allocated from FreeRTOS heap.
+ * Stored opaquely inside the pthread_cond_t scalar via pointer cast.
+ */
+typedef struct {
+    SemaphoreHandle_t       cond_lock;      /* Mutex guarding the waiter queue */
+    posix_cond_waiter_t    *head;           /* First waiter (dequeue end) */
+    posix_cond_waiter_t    *tail;           /* Last waiter (enqueue end) */
+} posix_cond_t;
+
+/*
+ * pthread_cond_init — Allocates condition variable control block with
+ * an internal lock and empty waiter queue.
+ */
+int pthread_cond_init(pthread_cond_t *cond, const pthread_condattr_t *attr)
+{
+    (void)attr; /* Attributes reserved for future expansion */
+    if (cond == NULL) {
+        return -1;
+    }
+
+    /* Allocate condition variable control block from FreeRTOS heap */
+    posix_cond_t *cv = pvPortMalloc(sizeof(posix_cond_t));
+    if (cv == NULL) {
+        return -1; /* Heap exhausted */
+    }
+
+    /* Create internal mutex to serialize waiter queue operations */
+    cv->cond_lock = xSemaphoreCreateMutex();
+    if (cv->cond_lock == NULL) {
+        vPortFree(cv);
+        return -1;
+    }
+
+    /* Initialize empty waiter queue */
+    cv->head = NULL;
+    cv->tail = NULL;
+
+    /* Store opaque pointer in pthread_cond_t */
+    *cond = (pthread_cond_t)(uintptr_t)cv;
+    return 0;
+}
 
 /*
  * sleep — Suspends thread execution for given seconds.

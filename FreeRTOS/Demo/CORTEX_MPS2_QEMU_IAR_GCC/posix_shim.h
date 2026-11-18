@@ -14,8 +14,10 @@
 #define POSIX_SHIM_H
 
 /* Standard POSIX and C library type headers */
-#include <pthread.h>   /* Provides pthread_t, pthread_mutex_t, pthread_attr_t, etc. */
+#include <pthread.h>   /* Provides pthread_t, pthread_mutex_t, pthread_cond_t, etc. */
 #include <unistd.h>    /* Provides useconds_t and standard timing types */
+#include <errno.h>     /* Provides ETIMEDOUT and standard error codes */
+#include <time.h>      /* Provides struct timespec for timed operations */
 
 /*
  * ----------------------------------------------------------------------------
@@ -154,6 +156,25 @@ int pthread_mutex_unlock(pthread_mutex_t *mutex);
  * @return 0 on success, or -1 if pointer is NULL.
  */
 int pthread_mutex_destroy(pthread_mutex_t *mutex);
+
+/* ============================================================================
+ * POSIX Condition Variable Synchronization API
+ * ============================================================================
+ */
+
+/**
+ * @brief Initializes a POSIX condition variable.
+ *
+ * Allocates an internal condition variable control structure backed by
+ * FreeRTOS semaphores and a waiter queue. Enables threads to efficiently
+ * wait for state changes without busy polling.
+ *
+ * @param[out] cond Pointer to the pthread_cond_t variable to initialize.
+ * @param[in]  attr Condition variable attributes (currently unused; pass NULL).
+ *
+ * @return 0 on successful initialization, or -1 on allocation failure.
+ */
+int pthread_cond_init(pthread_cond_t *cond, const pthread_condattr_t *attr);
 
 /* ============================================================================
  * POSIX Timing, Delays & Scheduler Yield API
