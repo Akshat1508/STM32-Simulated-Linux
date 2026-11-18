@@ -887,3 +887,13 @@ int fcntl(int fd, int cmd, ...)
 
     return lwip_fcntl(fd, cmd, val);
 }
+
+/*
+ * select — Synchronous I/O multiplexing across multiple socket descriptors.
+ */
+#undef select
+int select(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptset,
+           struct timeval *timeout)
+{
+    return lwip_select(maxfdp1, readset, writeset, exceptset, timeout);
+}

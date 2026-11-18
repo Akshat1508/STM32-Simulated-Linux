@@ -434,4 +434,24 @@ int setsockopt(int s, int level, int optname, const void *optval, socklen_t optl
  */
 int fcntl(int fd, int cmd, ...);
 
+/**
+ * @brief Synchronous I/O multiplexing across multiple socket descriptors.
+ *
+ * Maps to LwIP lwip_select(). Examines sets of descriptors to see if any are
+ * ready for reading, writing, or have an exceptional condition pending.
+ * Enables single-threaded event loops to manage multiple socket connections.
+ *
+ * @param[in]     maxfdp1   Maximum descriptor index across all sets, plus 1.
+ * @param[in,out] readset   Descriptor set checked for read readiness.
+ * @param[in,out] writeset  Descriptor set checked for write readiness.
+ * @param[in,out] exceptset Descriptor set checked for error/exception conditions.
+ * @param[in]     timeout   Maximum time to wait (pass NULL to block indefinitely).
+ *
+ * @return Total number of ready descriptors across all sets, 0 on timeout, or -1 on error.
+ */
+#ifndef select
+int select(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptset,
+           struct timeval *timeout);
+#endif
+
 #endif /* POSIX_SHIM_H */
