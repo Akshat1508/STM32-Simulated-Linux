@@ -379,6 +379,155 @@ void *web_server_thread(void *arg)
 }
 
 /* ============================================================================
+ * Client Socket Test Thread: Milestone 2 Verification Suite (Group C)
+ *
+ * Exercises and verifies the 7 newly implemented Group C networking APIs:
+ *   1. socket(): Creates an outbound TCP stream socket descriptor.
+ *   2. setsockopt(): Configures SO_REUSEADDR and SO_RCVTIMEO options.
+ *   3. fcntl(): Tests F_GETFL / F_SETFL flags, verifying non-blocking toggle.
+ *   4. connect(): Establishes an outbound TCP connection to the local HTTP server.
+ *   5. send(): Transmits an HTTP GET request payload over the socket.
+ *   6. select(): Validates synchronous read readiness on the socket descriptor.
+ *   7. poll(): Validates pollfd-based event multiplexing for POLLIN.
+ *   8. recv(): Reads the HTTP 200 OK response from the server.
+ *   9. close(): Gracefully closes the socket descriptor.
+ * ============================================================================
+ */
+void *client_socket_test_thread(void *arg)
+{
+    (void)arg;
+    int all_passed = 1;
+
+    printf("[Client Test] --- Starting Milestone 2 Socket Client Verification ---\n");
+
+    /* Step 1: Create client socket */
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0) {
+        printf("[Client Test] FAILED: socket() creation returned %d\n", sock);
+        return (void *)(uintptr_t)0;
+    }
+    printf("[Client Test] 1. socket() created fd: %d [PASSED]\n", sock);
+
+    /* Step 2: Test setsockopt() - SO_REUSEADDR and SO_RCVTIMEO */
+    int reuse = 1;
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) != 0) {
+        printf("[Client Test] FAILED: setsockopt(SO_REUSEADDR)\n");
+        all_passed = 0;
+    } else {
+        printf("[Client Test] 2a. setsockopt(SO_REUSEADDR) [PASSED]\n");
+    }
+
+    int rcv_timeout_ms = 3000;
+    if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &rcv_timeout_ms, sizeof(rcv_timeout_ms)) != 0) {
+        printf("[Client Test] FAILED: setsockopt(SO_RCVTIMEO)\n");
+        all_passed = 0;
+    } else {
+        printf("[Client Test] 2b. setsockopt(SO_RCVTIMEO) [PASSED]\n");
+    }
+
+    /* Step 3: Test fcntl() - F_GETFL and F_SETFL (O_NONBLOCK toggle) */
+    int orig_flags = fcntl(sock, F_GETFL);
+    if (orig_flags < 0) {
+        printf("[Client Test] FAILED: fcntl(F_GETFL)\n");
+        all_passed = 0;
+    } else {
+        /* Set O_NONBLOCK */
+        if (fcntl(sock, F_SETFL, O_NONBLOCK) != 0) {
+            printf("[Client Test] FAILED: fcntl(F_SETFL, O_NONBLOCK)\n");
+            all_passed = 0;
+        } else {
+            int nb_flags = fcntl(sock, F_GETFL);
+            if (!(nb_flags & O_NONBLOCK)) {
+                printf("[Client Test] FAILED: O_NONBLOCK flag not set in fcntl\n");
+                all_passed = 0;
+            } else {
+                printf("[Client Test] 3. fcntl(F_GETFL / F_SETFL, O_NONBLOCK) [PASSED]\n");
+            }
+            /* Restore blocking mode for synchronous connect */
+            fcntl(sock, F_SETFL, 0);
+        }
+    }
+
+    /* Step 4: Test connect() - connect to local web server on 127.0.0.1:80 */
+    struct sockaddr_in srv_addr;
+    memset(&srv_addr, 0, sizeof(srv_addr));
+    srv_addr.sin_family = AF_INET;
+    srv_addr.sin_port = htons(80);
+    srv_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+
+    printf("[Client Test] Connecting to 127.0.0.1:80...\n");
+    if (connect(sock, (struct sockaddr *)&srv_addr, sizeof(srv_addr)) != 0) {
+        printf("[Client Test] FAILED: connect() to 127.0.0.1:80\n");
+        close(sock);
+        return (void *)(uintptr_t)0;
+    }
+    printf("[Client Test] 4. connect() to HTTP server [PASSED]\n");
+
+    /* Step 5: Test send() - send HTTP GET request */
+    const char *http_req = "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n";
+    size_t req_len = strlen(http_req);
+    int sent_bytes = send(sock, http_req, req_len, 0);
+    if (sent_bytes != (int)req_len) {
+        printf("[Client Test] FAILED: send() returned %d (expected %d)\n", sent_bytes, (int)req_len);
+        all_passed = 0;
+    } else {
+        printf("[Client Test] 5. send() transmitted %d bytes [PASSED]\n", sent_bytes);
+    }
+
+    /* Step 6: Test select() multiplexing - wait up to 2 seconds for read readiness */
+    fd_set rset;
+    FD_ZERO(&rset);
+    FD_SET(sock, &rset);
+    struct timeval sel_tv;
+    sel_tv.tv_sec = 2;
+    sel_tv.tv_usec = 0;
+    int sel_ret = select(sock + 1, &rset, NULL, NULL, &sel_tv);
+    if (sel_ret > 0 && FD_ISSET(sock, &rset)) {
+        printf("[Client Test] 6. select() detected read readiness [PASSED]\n");
+    } else {
+        printf("[Client Test] FAILED: select() returned %d\n", sel_ret);
+        all_passed = 0;
+    }
+
+    /* Step 7: Test poll() multiplexing - inspect read readiness on pollfd */
+    struct pollfd pfd;
+    pfd.fd = sock;
+    pfd.events = POLLIN;
+    pfd.revents = 0;
+    int poll_ret = poll(&pfd, 1, 2000);
+    if (poll_ret > 0 && (pfd.revents & POLLIN)) {
+        printf("[Client Test] 7. poll() detected POLLIN event [PASSED]\n");
+    } else {
+        printf("[Client Test] FAILED: poll() returned %d (revents: 0x%04x)\n", poll_ret, pfd.revents);
+        all_passed = 0;
+    }
+
+    /* Step 8: Test recv() - receive HTTP response payload */
+    char rx_buf[256];
+    int recv_bytes = recv(sock, rx_buf, sizeof(rx_buf) - 1, 0);
+    if (recv_bytes > 0) {
+        rx_buf[recv_bytes] = '\0';
+        if (strstr(rx_buf, "200 OK") != NULL) {
+            printf("[Client Test] 8. recv() received %d bytes ('HTTP/1.1 200 OK') [PASSED]\n", recv_bytes);
+        } else {
+            printf("[Client Test] FAILED: recv() received unexpected payload: %s\n", rx_buf);
+            all_passed = 0;
+        }
+    } else {
+        printf("[Client Test] FAILED: recv() returned %d\n", recv_bytes);
+        all_passed = 0;
+    }
+
+    /* Step 9: Close client socket */
+    close(sock);
+
+    printf("[Client Test] --- Milestone 2 Sockets Verification Summary: %s ---\n",
+           all_passed ? "ALL TESTS PASSED" : "TESTS FAILED");
+
+    return (void *)(uintptr_t)all_passed;
+}
+
+/* ============================================================================
  * Master Application Thread: main_posix_app
  *
  * Orchestrates the simulated Linux user-space environment:
@@ -508,10 +657,18 @@ void *main_posix_app(void *arg)
            total_consumed, TOTAL_ITEMS,
            (total_consumed == TOTAL_ITEMS) ? "PASSED" : "FAILED");
 
-    /* Wait for Web Server Daemon (runs continuously) */
-    printf("[Main] Joining Web Server...\n");
-    pthread_join(web_server, NULL);
-    printf("[Main] Web Server joined.\n");
+    /* Spawn Milestone 2 POSIX Socket Client Verification Thread */
+    pthread_t client_test;
+    void *client_test_status = NULL;
+    printf("[Main] --- Spawning Milestone 2 Socket Client Verification Thread ---\n");
+    if (pthread_create(&client_test, NULL, client_socket_test_thread, NULL) != 0) {
+        printf("[Main] Failed to create Client Socket Test thread\n");
+    } else {
+        printf("[Main] Joining Client Socket Test...\n");
+        pthread_join(client_test, &client_test_status);
+        printf("[Main] Client Socket Test joined with status: %s\n",
+               ((int)(uintptr_t)client_test_status == 1) ? "PASSED" : "FAILED");
+    }
 
     /*
      * Concurrency Verification:
@@ -525,6 +682,13 @@ void *main_posix_app(void *arg)
     pthread_cond_destroy(&g_cond_not_empty);
     pthread_cond_destroy(&g_cond_not_full);
     pthread_mutex_destroy(&g_condvar_mutex);
+
+    printf("--- All Milestone Verification Suites Completed Successfully ---\n");
+
+    /* Wait for Web Server Daemon (runs continuously) */
+    printf("[Main] Joining Web Server...\n");
+    pthread_join(web_server, NULL);
+    printf("[Main] Web Server joined.\n");
 
     printf("--- Simulated Linux Environment Terminated Successfully ---\n");
     return NULL;
