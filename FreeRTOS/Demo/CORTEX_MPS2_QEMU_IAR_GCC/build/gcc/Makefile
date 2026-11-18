@@ -108,6 +108,7 @@ SOURCE_FILES += $(DEMO_PROJECT)/main.c
 SOURCE_FILES += $(DEMO_PROJECT)/main_blinky.c
 SOURCE_FILES += $(DEMO_PROJECT)/main_full.c
 SOURCE_FILES += $(DEMO_PROJECT)/posix_shim.c
+SOURCE_FILES += $(DEMO_PROJECT)/vfs.c
 SOURCE_FILES += ./startup_gcc.c
 SOURCE_FILES += ./RegTest.c
 SOURCE_FILES += ./printf-stdarg.c
