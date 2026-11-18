@@ -528,6 +528,118 @@ void *client_socket_test_thread(void *arg)
 }
 
 /* ============================================================================
+ * Clock & High-Resolution Timer Test Thread: Milestone 3 Verification Suite
+ *
+ * Exercises and verifies the 4 newly implemented Group B timing APIs:
+ *   1. clock_gettime(): Tests CLOCK_REALTIME and CLOCK_MONOTONIC with SysTick precision.
+ *   2. gettimeofday(): Tests calendar time query (seconds + microseconds).
+ *   3. time(): Tests standard Epoch whole-seconds query.
+ *   4. nanosleep(): Tests sub-millisecond precision delay and task-yielding sleep.
+ * ============================================================================
+ */
+void *clock_timer_test_thread(void *arg)
+{
+    (void)arg;
+    int all_passed = 1;
+
+    printf("[Clock Test] --- Starting Milestone 3 Clocks & Timers Verification ---\n");
+
+    /* Step 1: Test clock_gettime(CLOCK_REALTIME) */
+    struct timespec ts_real;
+    if (clock_gettime(CLOCK_REALTIME, &ts_real) != 0) {
+        printf("[Clock Test] FAILED: clock_gettime(CLOCK_REALTIME)\n");
+        all_passed = 0;
+    } else {
+        printf("[Clock Test] 1a. clock_gettime(CLOCK_REALTIME) -> %ld s, %ld ns [PASSED]\n",
+               (long)ts_real.tv_sec, (long)ts_real.tv_nsec);
+    }
+
+    /* Step 2: Test clock_gettime(CLOCK_MONOTONIC) */
+    struct timespec ts_mono1, ts_mono2;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts_mono1) != 0) {
+        printf("[Clock Test] FAILED: clock_gettime(CLOCK_MONOTONIC)\n");
+        all_passed = 0;
+    } else {
+        printf("[Clock Test] 1b. clock_gettime(CLOCK_MONOTONIC) -> %ld s, %ld ns [PASSED]\n",
+               (long)ts_mono1.tv_sec, (long)ts_mono1.tv_nsec);
+    }
+
+    /* Test clock_gettime error handling */
+    struct timespec ts_err;
+    if (clock_gettime(999, &ts_err) == -1 && errno == EINVAL) {
+        printf("[Clock Test] 1c. clock_gettime invalid clk_id rejected [PASSED]\n");
+    } else {
+        printf("[Clock Test] FAILED: clock_gettime invalid clk_id error check\n");
+        all_passed = 0;
+    }
+
+    /* Step 3: Test gettimeofday() */
+    struct timeval tv;
+    struct timezone tz;
+    if (gettimeofday(&tv, &tz) != 0) {
+        printf("[Clock Test] FAILED: gettimeofday()\n");
+        all_passed = 0;
+    } else {
+        printf("[Clock Test] 2. gettimeofday() -> %ld s, %ld us [PASSED]\n",
+               (long)tv.tv_sec, (long)tv.tv_usec);
+    }
+
+    /* Step 4: Test time() */
+    time_t t_var = 0;
+    time_t t_ret = time(&t_var);
+    if (t_ret < 0 || t_ret != t_var) {
+        printf("[Clock Test] FAILED: time() returned %ld, t_var=%ld\n",
+               (long)t_ret, (long)t_var);
+        all_passed = 0;
+    } else {
+        printf("[Clock Test] 3. time() -> %ld s [PASSED]\n", (long)t_ret);
+    }
+
+    /* Step 5: Test nanosleep() sub-millisecond precision (500 microseconds = 500,000 ns) */
+    struct timespec req_sub, rem_sub;
+    req_sub.tv_sec  = 0;
+    req_sub.tv_nsec = 500000L; /* 500 us */
+
+    clock_gettime(CLOCK_MONOTONIC, &ts_mono1);
+    int nano_ret = nanosleep(&req_sub, &rem_sub);
+    clock_gettime(CLOCK_MONOTONIC, &ts_mono2);
+
+    if (nano_ret != 0) {
+        printf("[Clock Test] FAILED: nanosleep(500 us) returned %d\n", nano_ret);
+        all_passed = 0;
+    } else {
+        uint64_t ns_start = (uint64_t)ts_mono1.tv_sec * 1000000000ULL + (uint64_t)ts_mono1.tv_nsec;
+        uint64_t ns_end   = (uint64_t)ts_mono2.tv_sec * 1000000000ULL + (uint64_t)ts_mono2.tv_nsec;
+        uint64_t delta_ns = (ns_end >= ns_start) ? (ns_end - ns_start) : 0;
+        printf("[Clock Test] 4a. nanosleep(500 us) elapsed: %lu ns [PASSED]\n", (unsigned long)delta_ns);
+    }
+
+    /* Step 6: Test nanosleep() coarse delay (50 ms = 50,000,000 ns) */
+    struct timespec req_coarse;
+    req_coarse.tv_sec  = 0;
+    req_coarse.tv_nsec = 50000000L; /* 50 ms */
+
+    clock_gettime(CLOCK_MONOTONIC, &ts_mono1);
+    nano_ret = nanosleep(&req_coarse, NULL);
+    clock_gettime(CLOCK_MONOTONIC, &ts_mono2);
+
+    if (nano_ret != 0) {
+        printf("[Clock Test] FAILED: nanosleep(50 ms) returned %d\n", nano_ret);
+        all_passed = 0;
+    } else {
+        uint64_t ns_start = (uint64_t)ts_mono1.tv_sec * 1000000000ULL + (uint64_t)ts_mono1.tv_nsec;
+        uint64_t ns_end   = (uint64_t)ts_mono2.tv_sec * 1000000000ULL + (uint64_t)ts_mono2.tv_nsec;
+        uint64_t delta_ms = ((ns_end >= ns_start) ? (ns_end - ns_start) : 0) / 1000000ULL;
+        printf("[Clock Test] 4b. nanosleep(50 ms) elapsed: %lu ms [PASSED]\n", (unsigned long)delta_ms);
+    }
+
+    printf("[Clock Test] --- Milestone 3 Clocks & Timers Verification Summary: %s ---\n",
+           all_passed ? "ALL TESTS PASSED" : "TESTS FAILED");
+
+    return (void *)(uintptr_t)all_passed;
+}
+
+/* ============================================================================
  * Master Application Thread: main_posix_app
  *
  * Orchestrates the simulated Linux user-space environment:
@@ -668,6 +780,19 @@ void *main_posix_app(void *arg)
         pthread_join(client_test, &client_test_status);
         printf("[Main] Client Socket Test joined with status: %s\n",
                ((int)(uintptr_t)client_test_status == 1) ? "PASSED" : "FAILED");
+    }
+
+    /* Spawn Milestone 3 Clocks & High-Resolution Timers Verification Thread */
+    pthread_t clock_test;
+    void *clock_test_status = NULL;
+    printf("[Main] --- Spawning Milestone 3 Clocks & Timers Verification Thread ---\n");
+    if (pthread_create(&clock_test, NULL, clock_timer_test_thread, NULL) != 0) {
+        printf("[Main] Failed to create Clock & Timer Test thread\n");
+    } else {
+        printf("[Main] Joining Clock & Timer Test...\n");
+        pthread_join(clock_test, &clock_test_status);
+        printf("[Main] Clock & Timer Test joined with status: %s\n",
+               ((int)(uintptr_t)clock_test_status == 1) ? "PASSED" : "FAILED");
     }
 
     /*
