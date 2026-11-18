@@ -9,8 +9,9 @@
  *   1. POSIX Thread Creation & Joining (pthread_create, pthread_join)
  *   2. Mutual Exclusion Locks (pthread_mutex_*) protecting shared variables
  *   3. Counting Semaphore Synchronization (sem_init, sem_wait, sem_post)
- *   4. Timing Conversions (sleep, usleep)
- *   5. Multithreaded BSD Socket Networking with LwIP (HTTP Web Server)
+ *   4. Condition Variable Synchronization (pthread_cond_wait, signal, broadcast)
+ *   5. Timing Conversions (sleep, usleep)
+ *   6. Multithreaded BSD Socket Networking with LwIP (HTTP Web Server)
  * ============================================================================
  */
 
@@ -23,7 +24,7 @@
 #include "task.h"
 
 /* Decoupled POSIX Compatibility Layer Header */
-#include "posix_shim.h"      /* pthread_*, sem_*, sleep, usleep */
+#include "posix_shim.h"      /* pthread_*, pthread_cond_*, sem_*, sleep, usleep */
 
 /* LwIP TCP/IP Stack & BSD Socket Headers */
 #include "lwip/sockets.h"
@@ -52,6 +53,31 @@ typedef struct {
     int thread_id;   /* Unique identifier for logging output */
     int iterations;  /* Number of increments to perform */
 } thread_config_t;
+
+/* ============================================================================
+ * Condition Variable Test: Bounded Buffer Producer-Consumer
+ *
+ * Validates pthread_cond_wait, pthread_cond_signal, and pthread_cond_broadcast.
+ * A producer thread fills a shared bounded buffer and signals waiting consumers.
+ * Consumer threads wait on a condition variable until data becomes available.
+ * ============================================================================
+ */
+
+/* Bounded buffer configuration */
+#define BUFFER_CAPACITY 4
+#define TOTAL_ITEMS     8
+
+/* Shared bounded buffer state protected by condvar_mutex */
+static int              g_buffer[BUFFER_CAPACITY];
+static int              g_buffer_count = 0;    /* Current number of items in buffer */
+static int              g_produce_idx  = 0;    /* Next write index (circular) */
+static int              g_consume_idx  = 0;    /* Next read index (circular) */
+static volatile int     g_production_done = 0; /* Flag: producer finished all items */
+
+/* Condition variable synchronization primitives */
+static pthread_mutex_t  g_condvar_mutex;
+static pthread_cond_t   g_cond_not_empty;  /* Signaled when buffer has data */
+static pthread_cond_t   g_cond_not_full;   /* Signaled when buffer has free space */
 
 /* ============================================================================
  * Worker Thread 1 & 2: Mutex Concurrency Test Routine
@@ -122,6 +148,111 @@ void *worker_thread_semaphore(void *arg)
 
     printf("[Sem Worker] Task completed. Exiting.\n");
     return NULL;
+}
+
+/* ============================================================================
+ * Producer Thread: Condition Variable Bounded Buffer Test
+ *
+ * Produces TOTAL_ITEMS data tokens into the shared bounded buffer.
+ * When the buffer is full, waits on g_cond_not_full until a consumer
+ * removes an item. After producing each item, signals g_cond_not_empty
+ * to wake a waiting consumer. After all items are produced, broadcasts
+ * to wake all consumers so they can detect completion.
+ * ============================================================================
+ */
+void *producer_thread(void *arg)
+{
+    (void)arg;
+    printf("[Producer] Started. Producing %d items...\n", TOTAL_ITEMS);
+
+    for (int i = 1; i <= TOTAL_ITEMS; i++) {
+        pthread_mutex_lock(&g_condvar_mutex);
+
+        /* Wait while buffer is full */
+        while (g_buffer_count == BUFFER_CAPACITY) {
+            printf("[Producer] Buffer full (%d/%d). Waiting...\n",
+                   g_buffer_count, BUFFER_CAPACITY);
+            pthread_cond_wait(&g_cond_not_full, &g_condvar_mutex);
+        }
+
+        /* Produce: insert item into circular buffer */
+        g_buffer[g_produce_idx] = i;
+        g_produce_idx = (g_produce_idx + 1) % BUFFER_CAPACITY;
+        g_buffer_count++;
+
+        printf("[Producer] Produced item %d (buffer: %d/%d)\n",
+               i, g_buffer_count, BUFFER_CAPACITY);
+
+        /* Signal one consumer that data is available */
+        pthread_cond_signal(&g_cond_not_empty);
+
+        pthread_mutex_unlock(&g_condvar_mutex);
+
+        /* Brief pause to allow interleaving with consumers */
+        usleep(50000);
+    }
+
+    /* Mark production as complete and wake all consumers */
+    pthread_mutex_lock(&g_condvar_mutex);
+    g_production_done = 1;
+    pthread_cond_broadcast(&g_cond_not_empty);
+    pthread_mutex_unlock(&g_condvar_mutex);
+
+    printf("[Producer] All %d items produced. Exiting.\n", TOTAL_ITEMS);
+    return NULL;
+}
+
+/* ============================================================================
+ * Consumer Thread: Condition Variable Bounded Buffer Test
+ *
+ * Consumes items from the shared bounded buffer. When the buffer is empty,
+ * waits on g_cond_not_empty until the producer adds data. After consuming
+ * an item, signals g_cond_not_full to wake the producer if it was blocked.
+ * Exits when production is complete and buffer is empty.
+ * ============================================================================
+ */
+void *consumer_thread(void *arg)
+{
+    int consumer_id = (int)(uintptr_t)arg;
+    int items_consumed = 0;
+
+    printf("[Consumer %d] Started. Waiting for items...\n", consumer_id);
+
+    while (1) {
+        pthread_mutex_lock(&g_condvar_mutex);
+
+        /* Wait while buffer is empty and production is not done */
+        while (g_buffer_count == 0 && !g_production_done) {
+            pthread_cond_wait(&g_cond_not_empty, &g_condvar_mutex);
+        }
+
+        /* Check termination: buffer empty AND producer finished */
+        if (g_buffer_count == 0 && g_production_done) {
+            pthread_mutex_unlock(&g_condvar_mutex);
+            break;
+        }
+
+        /* Consume: extract item from circular buffer */
+        int item = g_buffer[g_consume_idx];
+        g_consume_idx = (g_consume_idx + 1) % BUFFER_CAPACITY;
+        g_buffer_count--;
+        items_consumed++;
+
+        printf("[Consumer %d] Consumed item %d (buffer: %d/%d)\n",
+               consumer_id, item, g_buffer_count, BUFFER_CAPACITY);
+
+        /* Signal producer that buffer has free space */
+        pthread_cond_signal(&g_cond_not_full);
+
+        pthread_mutex_unlock(&g_condvar_mutex);
+
+        /* Simulate processing time */
+        usleep(80000);
+    }
+
+    printf("[Consumer %d] Finished. Consumed %d items total.\n",
+           consumer_id, items_consumed);
+    return (void *)(uintptr_t)items_consumed;
 }
 
 /* ============================================================================
@@ -251,11 +382,12 @@ void *web_server_thread(void *arg)
  * Master Application Thread: main_posix_app
  *
  * Orchestrates the simulated Linux user-space environment:
- *   1. Initializes mutexes and counting semaphores
- *   2. Spawns worker threads and HTTP server via pthread_create()
+ *   1. Initializes mutexes, counting semaphores, and condition variables
+ *   2. Spawns worker threads, producer-consumer threads, and HTTP server
  *   3. Triggers semaphore signaling via sem_post()
  *   4. Blocks on thread completion via pthread_join()
  *   5. Validates thread synchronization integrity and shared counter value
+ *   6. Validates condition variable producer-consumer item counts
  * ============================================================================
  */
 void *main_posix_app(void *arg)
@@ -275,7 +407,22 @@ void *main_posix_app(void *arg)
         return NULL;
     }
 
+    /* Initialize condition variable synchronization primitives */
+    if (pthread_mutex_init(&g_condvar_mutex, NULL) != 0) {
+        printf("Failed to initialize condvar mutex\n");
+        return NULL;
+    }
+    if (pthread_cond_init(&g_cond_not_empty, NULL) != 0) {
+        printf("Failed to initialize cond_not_empty\n");
+        return NULL;
+    }
+    if (pthread_cond_init(&g_cond_not_full, NULL) != 0) {
+        printf("Failed to initialize cond_not_full\n");
+        return NULL;
+    }
+
     pthread_t thread1, thread2, sem_thread, web_server;
+    pthread_t producer, consumer1, consumer2;
 
     /* Allocate thread configuration blocks from heap */
     thread_config_t *config1 = pvPortMalloc(sizeof(thread_config_t));
@@ -295,6 +442,15 @@ void *main_posix_app(void *arg)
     /* Spawn Semaphore Worker Thread */
     if (pthread_create(&sem_thread, NULL, worker_thread_semaphore, NULL) != 0)
         printf("Failed to create Semaphore Worker\n");
+
+    /* Spawn Producer-Consumer Condition Variable Test Threads */
+    printf("[Main] --- Starting Condition Variable Test (Producer-Consumer) ---\n");
+    if (pthread_create(&producer, NULL, producer_thread, NULL) != 0)
+        printf("Failed to create Producer thread\n");
+    if (pthread_create(&consumer1, NULL, consumer_thread, (void *)(uintptr_t)1) != 0)
+        printf("Failed to create Consumer 1\n");
+    if (pthread_create(&consumer2, NULL, consumer_thread, (void *)(uintptr_t)2) != 0)
+        printf("Failed to create Consumer 2\n");
 
     /* Spawn POSIX BSD Socket HTTP Web Server Daemon */
     if (pthread_create(&web_server, NULL, web_server_thread, NULL) != 0)
@@ -325,6 +481,33 @@ void *main_posix_app(void *arg)
     pthread_join(sem_thread, &status_sem);
     printf("[Main] Semaphore Worker joined.\n");
 
+    /* Wait for Producer-Consumer threads and validate results */
+    void *producer_status = NULL;
+    void *consumer1_status = NULL, *consumer2_status = NULL;
+
+    printf("[Main] Joining Producer...\n");
+    pthread_join(producer, &producer_status);
+    printf("[Main] Producer joined.\n");
+
+    printf("[Main] Joining Consumer 1...\n");
+    pthread_join(consumer1, &consumer1_status);
+    printf("[Main] Consumer 1 joined (consumed: %d items).\n",
+           (int)(uintptr_t)consumer1_status);
+
+    printf("[Main] Joining Consumer 2...\n");
+    pthread_join(consumer2, &consumer2_status);
+    printf("[Main] Consumer 2 joined (consumed: %d items).\n",
+           (int)(uintptr_t)consumer2_status);
+
+    /* Condition Variable Verification:
+     * Consumer 1 + Consumer 2 must have consumed exactly TOTAL_ITEMS items */
+    int total_consumed = (int)(uintptr_t)consumer1_status +
+                         (int)(uintptr_t)consumer2_status;
+    printf("[Main] --- Condition Variable Test Results ---\n");
+    printf("[Main] Total items consumed: %d (Expected: %d) [%s]\n",
+           total_consumed, TOTAL_ITEMS,
+           (total_consumed == TOTAL_ITEMS) ? "PASSED" : "FAILED");
+
     /* Wait for Web Server Daemon (runs continuously) */
     printf("[Main] Joining Web Server...\n");
     pthread_join(web_server, NULL);
@@ -339,6 +522,9 @@ void *main_posix_app(void *arg)
     /* Clean up synchronization resources */
     pthread_mutex_destroy(&g_counter_mutex);
     sem_destroy(&g_job_semaphore);
+    pthread_cond_destroy(&g_cond_not_empty);
+    pthread_cond_destroy(&g_cond_not_full);
+    pthread_mutex_destroy(&g_condvar_mutex);
 
     printf("--- Simulated Linux Environment Terminated Successfully ---\n");
     return NULL;
