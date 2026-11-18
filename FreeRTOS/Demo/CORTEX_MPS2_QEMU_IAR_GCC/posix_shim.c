@@ -851,3 +851,12 @@ int send(int s, const void *dataptr, size_t size, int flags)
 {
     return lwip_send(s, dataptr, size, flags);
 }
+
+/*
+ * recv — Receives incoming data from a connected socket.
+ */
+#undef recv
+int recv(int s, void *mem, size_t len, int flags)
+{
+    return lwip_recv(s, mem, len, flags);
+}

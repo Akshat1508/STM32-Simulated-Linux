@@ -371,4 +371,21 @@ int connect(int s, const struct sockaddr *name, socklen_t namelen);
 int send(int s, const void *dataptr, size_t size, int flags);
 #endif
 
+/**
+ * @brief Receives a message from a connected socket.
+ *
+ * Maps to LwIP lwip_recv(). Supports standard POSIX flags such as
+ * MSG_DONTWAIT for non-blocking reads and MSG_PEEK to inspect data.
+ *
+ * @param[in]  s     Socket descriptor.
+ * @param[out] mem   Pointer to buffer to store received payload.
+ * @param[in]  len   Maximum number of bytes to receive.
+ * @param[in]  flags Reception flags (e.g. MSG_DONTWAIT, MSG_PEEK).
+ *
+ * @return Number of bytes received, 0 on peer disconnect, or -1 on error.
+ */
+#ifndef recv
+int recv(int s, void *mem, size_t len, int flags);
+#endif
+
 #endif /* POSIX_SHIM_H */
