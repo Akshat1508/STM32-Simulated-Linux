@@ -154,14 +154,75 @@ static void posix_thread_wrapper(void *pvParameters)
  */
 
 /*
+ * pthread_attr_init — Initializes a thread attributes object with defaults.
+ */
+int pthread_attr_init(pthread_attr_t *attr)
+{
+    if (attr == NULL) {
+        return EINVAL;
+    }
+
+    attr->is_initialized   = 1;
+    attr->stackaddr        = NULL;
+    attr->stacksize        = (int)(1024 * sizeof(StackType_t)); /* 4096 bytes */
+    attr->contentionscope  = PTHREAD_SCOPE_SYSTEM;
+    attr->inheritsched     = PTHREAD_INHERIT_SCHED;
+    attr->schedpolicy      = 0;
+    attr->schedparam.sched_priority = tskIDLE_PRIORITY + 1;
+    attr->detachstate      = PTHREAD_CREATE_JOINABLE;
+    return 0;
+}
+
+/*
+ * pthread_attr_destroy — Destroys a thread attributes object.
+ */
+int pthread_attr_destroy(pthread_attr_t *attr)
+{
+    if (attr == NULL || !attr->is_initialized) {
+        return EINVAL;
+    }
+
+    attr->is_initialized = 0;
+    return 0;
+}
+
+/*
+ * pthread_attr_setstacksize — Configures thread stack depth in bytes.
+ */
+int pthread_attr_setstacksize(pthread_attr_t *attr, size_t stacksize)
+{
+    if (attr == NULL || !attr->is_initialized) {
+        return EINVAL;
+    }
+
+    if (stacksize < (size_t)(configMINIMAL_STACK_SIZE * sizeof(StackType_t))) {
+        return EINVAL;
+    }
+
+    attr->stacksize = (int)stacksize;
+    return 0;
+}
+
+/*
+ * pthread_attr_getstacksize — Retrieves thread stack depth in bytes.
+ */
+int pthread_attr_getstacksize(const pthread_attr_t *attr, size_t *stacksize)
+{
+    if (attr == NULL || !attr->is_initialized || stacksize == NULL) {
+        return EINVAL;
+    }
+
+    *stacksize = (size_t)attr->stacksize;
+    return 0;
+}
+
+/*
  * pthread_create — Allocates thread descriptor, creates join semaphore,
  * registers the thread, and spawns a native FreeRTOS task.
  */
 int pthread_create(pthread_t *thread, const pthread_attr_t *attr,
                    void *(*start_routine)(void *), void *arg)
 {
-    (void)attr; /* Attributes (stack depth, priority) reserved for future expansion */
-
     if (thread == NULL || start_routine == NULL) {
         return -1;
     }
@@ -172,11 +233,26 @@ int pthread_create(pthread_t *thread, const pthread_attr_t *attr,
         return -1; /* Heap allocation failure */
     }
 
+    uint32_t stack_depth_words = 1024;
+    int is_detached = 0;
+
+    if (attr != NULL && attr->is_initialized) {
+        if (attr->stacksize > 0) {
+            stack_depth_words = (uint32_t)(attr->stacksize / (int)sizeof(StackType_t));
+            if (stack_depth_words < configMINIMAL_STACK_SIZE) {
+                stack_depth_words = configMINIMAL_STACK_SIZE;
+            }
+        }
+        if (attr->detachstate == PTHREAD_CREATE_DETACHED) {
+            is_detached = 1;
+        }
+    }
+
     /* Populate thread state fields */
     t->start_routine = start_routine;
     t->arg           = arg;
     t->retval        = NULL;
-    t->detached      = 0; /* Default: joinable thread */
+    t->detached      = is_detached;
 
     /* Create binary semaphore for join synchronization (initially empty) */
     t->join_sem = xSemaphoreCreateBinary();
@@ -194,12 +270,12 @@ int pthread_create(pthread_t *thread, const pthread_attr_t *attr,
     /*
      * Spawn the FreeRTOS task:
      * - Entry Point: posix_thread_wrapper
-     * - Stack Depth: 1024 words (4096 bytes) allocated from heap_4.c
+     * - Stack Depth: stack_depth_words words allocated from heap_4.c
      * - Priority: tskIDLE_PRIORITY + 1 (low-medium application priority)
      */
     BaseType_t result = xTaskCreate(posix_thread_wrapper,
                                     "POSIX_Thread",
-                                    1024,
+                                    (configSTACK_DEPTH_TYPE)stack_depth_words,
                                     t,
                                     tskIDLE_PRIORITY + 1,
                                     &(t->xTask));

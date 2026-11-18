@@ -66,6 +66,48 @@ typedef void *sem_t;
  */
 
 /**
+ * @brief Initializes a thread attributes object with default settings.
+ *
+ * Sets default stack size to 1024 words (4096 bytes) and joinable state.
+ *
+ * @param[out] attr Pointer to pthread_attr_t structure to initialize.
+ *
+ * @return 0 on success, or EINVAL if attr is NULL.
+ */
+int pthread_attr_init(pthread_attr_t *attr);
+
+/**
+ * @brief Destroys a thread attributes object.
+ *
+ * @param[in,out] attr Pointer to initialized pthread_attr_t structure.
+ *
+ * @return 0 on success, or EINVAL if attr is NULL or uninitialized.
+ */
+int pthread_attr_destroy(pthread_attr_t *attr);
+
+/**
+ * @brief Sets the stack size attribute in bytes for thread creation.
+ *
+ * Overrides the default 1024 words (4096 bytes) stack depth allocated from heap_4.
+ *
+ * @param[in,out] attr      Pointer to initialized pthread_attr_t structure.
+ * @param[in]     stacksize Desired stack depth in bytes (must be >= configMINIMAL_STACK_SIZE * 4).
+ *
+ * @return 0 on success, or EINVAL if stacksize is below minimal threshold.
+ */
+int pthread_attr_setstacksize(pthread_attr_t *attr, size_t stacksize);
+
+/**
+ * @brief Retrieves the stack size attribute in bytes.
+ *
+ * @param[in]  attr      Pointer to initialized pthread_attr_t structure.
+ * @param[out] stacksize Pointer to store the extracted stack size in bytes.
+ *
+ * @return 0 on success, or EINVAL on invalid parameter.
+ */
+int pthread_attr_getstacksize(const pthread_attr_t *attr, size_t *stacksize);
+
+/**
  * @brief Spawns a new POSIX thread backed by a native FreeRTOS task.
  *
  * Allocates a dynamic thread tracking control block (posix_thread_t), creates
