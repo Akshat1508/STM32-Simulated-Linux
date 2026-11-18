@@ -25,6 +25,7 @@
  */
 
 #include "posix_shim.h"
+#include <stdarg.h>
 
 /* FreeRTOS Kernel Includes */
 #include "FreeRTOS.h"
@@ -868,4 +869,21 @@ int recv(int s, void *mem, size_t len, int flags)
 int setsockopt(int s, int level, int optname, const void *optval, socklen_t optlen)
 {
     return lwip_setsockopt(s, level, optname, optval, optlen);
+}
+
+/*
+ * fcntl — File descriptor control for non-blocking I/O flags.
+ */
+int fcntl(int fd, int cmd, ...)
+{
+    va_list va;
+    int val = 0;
+
+    va_start(va, cmd);
+    if (cmd == F_SETFL) {
+        val = va_arg(va, int);
+    }
+    va_end(va);
+
+    return lwip_fcntl(fd, cmd, val);
 }

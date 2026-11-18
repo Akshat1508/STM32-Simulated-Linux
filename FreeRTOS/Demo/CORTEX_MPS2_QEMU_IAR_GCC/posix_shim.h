@@ -407,4 +407,31 @@ int recv(int s, void *mem, size_t len, int flags);
 int setsockopt(int s, int level, int optname, const void *optval, socklen_t optlen);
 #endif
 
+/* Standard POSIX File Control Flags & Commands (fcntl) */
+#ifndef F_GETFL
+#define F_GETFL 3
+#endif
+
+#ifndef F_SETFL
+#define F_SETFL 4
+#endif
+
+#ifndef O_NONBLOCK
+#define O_NONBLOCK 1
+#endif
+
+/**
+ * @brief Performs file control operations on a socket descriptor.
+ *
+ * Supports standard POSIX commands F_GETFL (get flags) and F_SETFL
+ * (set flags) to inspect and toggle O_NONBLOCK non-blocking I/O mode.
+ *
+ * @param[in] fd  Socket file descriptor.
+ * @param[in] cmd Command identifier (F_GETFL or F_SETFL).
+ * @param[in] ... Optional argument (e.g. integer flag bits like O_NONBLOCK).
+ *
+ * @return On F_GETFL: current flags bitmask. On F_SETFL: 0 on success, or -1 on error.
+ */
+int fcntl(int fd, int cmd, ...);
+
 #endif /* POSIX_SHIM_H */
