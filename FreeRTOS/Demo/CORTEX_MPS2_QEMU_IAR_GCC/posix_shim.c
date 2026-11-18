@@ -842,3 +842,12 @@ int connect(int s, const struct sockaddr *name, socklen_t namelen)
 {
     return lwip_connect(s, name, namelen);
 }
+
+/*
+ * send — Transmits data payload across a connected socket.
+ */
+#undef send
+int send(int s, const void *dataptr, size_t size, int flags)
+{
+    return lwip_send(s, dataptr, size, flags);
+}

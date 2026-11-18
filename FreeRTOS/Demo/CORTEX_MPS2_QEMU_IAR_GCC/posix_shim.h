@@ -354,4 +354,21 @@ int sem_destroy(sem_t *sem);
 int connect(int s, const struct sockaddr *name, socklen_t namelen);
 #endif
 
+/**
+ * @brief Transmits a message over a connected socket.
+ *
+ * Maps to LwIP lwip_send(). Supports standard POSIX flags such as
+ * MSG_DONTWAIT for non-blocking transmissions.
+ *
+ * @param[in] s       Socket descriptor.
+ * @param[in] dataptr Pointer to buffer containing outgoing data payload.
+ * @param[in] size    Number of bytes to transmit.
+ * @param[in] flags   Transmission control flags (e.g. MSG_DONTWAIT, MSG_MORE).
+ *
+ * @return Number of bytes transmitted on success, or -1 on error.
+ */
+#ifndef send
+int send(int s, const void *dataptr, size_t size, int flags);
+#endif
+
 #endif /* POSIX_SHIM_H */
