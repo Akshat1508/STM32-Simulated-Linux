@@ -189,3 +189,162 @@ int close(int fd)
     memset(f, 0, sizeof(vfs_file_t));
     return 0;
 }
+
+ssize_t read(int fd, void *buf, size_t count)
+{
+    if (!g_vfs_initialized) {
+        vfs_init();
+    }
+
+    if (fd < 0 || fd >= VFS_MAX_FDS) {
+        errno = EBADF;
+        return -1;
+    }
+
+    if (buf == NULL && count > 0) {
+        errno = EFAULT;
+        return -1;
+    }
+
+    if (count == 0) {
+        return 0;
+    }
+
+    vfs_file_t *f = &g_vfs_table[fd];
+    if (f->type == VFS_NODE_FREE) {
+        errno = EBADF;
+        return -1;
+    }
+
+    switch (f->type) {
+        case VFS_NODE_CONSOLE:
+            /* Console stdin read: non-interactive batch environment returns EOF (0) */
+            return 0;
+
+        case VFS_NODE_SOCKET:
+            return (ssize_t)lwip_read((int)(uintptr_t)f->priv, buf, count);
+
+        case VFS_NODE_RAMFILE: {
+            if ((f->flags & 0x03) == O_WRONLY) {
+                errno = EBADF;
+                return -1;
+            }
+            vfs_ram_file_t *file = (vfs_ram_file_t *)f->priv;
+            if (file == NULL || !file->in_use) {
+                errno = EIO;
+                return -1;
+            }
+            if ((size_t)f->offset >= file->size) {
+                return 0; /* EOF */
+            }
+            size_t available = file->size - (size_t)f->offset;
+            size_t to_read = (count < available) ? count : available;
+            memcpy(buf, &file->data[f->offset], to_read);
+            f->offset += (off_t)to_read;
+            return (ssize_t)to_read;
+        }
+
+        case VFS_NODE_PIPE_READER: {
+            vfs_pipe_cb_t *pipe = (vfs_pipe_cb_t *)f->priv;
+            if (pipe == NULL || pipe->buffer == NULL) {
+                errno = EBADF;
+                return -1;
+            }
+            /* Receive bytes from stream buffer with non-blocking 0 timeout */
+            size_t rx_bytes = xStreamBufferReceive(pipe->buffer, buf, count, 0);
+            if (rx_bytes == 0 && pipe->writers_open <= 0) {
+                return 0; /* All writers closed and buffer drained: EOF */
+            }
+            return (ssize_t)rx_bytes;
+        }
+
+        default:
+            errno = EBADF;
+            return -1;
+    }
+}
+
+ssize_t write(int fd, const void *buf, size_t count)
+{
+    if (!g_vfs_initialized) {
+        vfs_init();
+    }
+
+    if (fd < 0 || fd >= VFS_MAX_FDS) {
+        errno = EBADF;
+        return -1;
+    }
+
+    if (buf == NULL && count > 0) {
+        errno = EFAULT;
+        return -1;
+    }
+
+    if (count == 0) {
+        return 0;
+    }
+
+    vfs_file_t *f = &g_vfs_table[fd];
+    if (f->type == VFS_NODE_FREE) {
+        errno = EBADF;
+        return -1;
+    }
+
+    switch (f->type) {
+        case VFS_NODE_CONSOLE: {
+            const char *p = (const char *)buf;
+            for (size_t i = 0; i < count; i++) {
+                UART0_DATA = (unsigned int)p[i];
+            }
+            return (ssize_t)count;
+        }
+
+        case VFS_NODE_SOCKET:
+            return (ssize_t)lwip_write((int)(uintptr_t)f->priv, buf, count);
+
+        case VFS_NODE_RAMFILE: {
+            if ((f->flags & 0x03) == O_RDONLY) {
+                errno = EBADF;
+                return -1;
+            }
+            vfs_ram_file_t *file = (vfs_ram_file_t *)f->priv;
+            if (file == NULL || !file->in_use) {
+                errno = EIO;
+                return -1;
+            }
+            if (f->flags & O_APPEND) {
+                f->offset = (off_t)file->size;
+            }
+            if ((size_t)f->offset >= VFS_RAM_FILE_SIZE) {
+                errno = ENOSPC;
+                return -1;
+            }
+            size_t available = VFS_RAM_FILE_SIZE - (size_t)f->offset;
+            size_t to_write = (count < available) ? count : available;
+            memcpy(&file->data[f->offset], buf, to_write);
+            f->offset += (off_t)to_write;
+            if ((size_t)f->offset > file->size) {
+                file->size = (size_t)f->offset;
+            }
+            return (ssize_t)to_write;
+        }
+
+        case VFS_NODE_PIPE_WRITER: {
+            vfs_pipe_cb_t *pipe = (vfs_pipe_cb_t *)f->priv;
+            if (pipe == NULL || pipe->buffer == NULL) {
+                errno = EBADF;
+                return -1;
+            }
+            if (pipe->readers_open <= 0) {
+                errno = EPIPE;
+                return -1; /* Broken pipe */
+            }
+            size_t tx_bytes = xStreamBufferSend(pipe->buffer, buf, count, 0);
+            return (ssize_t)tx_bytes;
+        }
+
+        default:
+            errno = EBADF;
+            return -1;
+    }
+}

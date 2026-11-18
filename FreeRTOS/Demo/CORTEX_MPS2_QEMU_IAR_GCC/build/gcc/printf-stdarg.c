@@ -302,7 +302,7 @@ int main(void)
 
 
 /* To keep linker happy. */
-int	write( int i, char* c, int n)
+__attribute__((weak)) int	write( int i, char* c, int n)
 {
 	(void)i;
 	(void)n;
