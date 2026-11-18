@@ -18,6 +18,16 @@
 #include <unistd.h>    /* Provides useconds_t and standard timing types */
 #include <errno.h>     /* Provides ETIMEDOUT and standard error codes */
 #include <time.h>      /* Provides struct timespec for timed operations */
+#include <sys/time.h>  /* Provides struct timeval and struct timezone */
+
+/* Standard POSIX Clock Identifiers */
+#ifndef CLOCK_REALTIME
+#define CLOCK_REALTIME  1
+#endif
+
+#ifndef CLOCK_MONOTONIC
+#define CLOCK_MONOTONIC 4
+#endif
 
 /* LwIP BSD Socket Headers for Network Layer */
 #include "lwip/sockets.h"
@@ -253,6 +263,20 @@ int pthread_cond_destroy(pthread_cond_t *cond);
  * POSIX Timing, Delays & Scheduler Yield API
  * ============================================================================
  */
+
+/**
+ * @brief Retrieves the time of the specified clock.
+ *
+ * Provides sub-microsecond precision timing by combining FreeRTOS kernel
+ * tick counter with the ARM Cortex-M SysTick down-counter register.
+ * Supports CLOCK_REALTIME and CLOCK_MONOTONIC.
+ *
+ * @param[in]  clk_id Identifier of the clock (CLOCK_REALTIME, CLOCK_MONOTONIC).
+ * @param[out] tp     Pointer to struct timespec to store seconds and nanoseconds.
+ *
+ * @return 0 on success, or -1 on error (with errno set to EINVAL or EFAULT).
+ */
+int clock_gettime(clockid_t clk_id, struct timespec *tp);
 
 /**
  * @brief Suspends execution of the calling thread for a specified number of seconds.

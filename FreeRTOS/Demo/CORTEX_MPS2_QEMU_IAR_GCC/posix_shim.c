@@ -27,6 +27,9 @@
 #include "posix_shim.h"
 #include <stdarg.h>
 
+/* ARM Cortex-M MPS2 Hardware & CMSIS Core Definitions */
+#include "SMM_MPS2.h"
+
 /* FreeRTOS Kernel Includes */
 #include "FreeRTOS.h"
 #include "task.h"
@@ -721,6 +724,52 @@ int pthread_cond_destroy(pthread_cond_t *cond)
         vPortFree(cv);
         *cond = 0; /* Clear handle to prevent use-after-free */
     }
+    return 0;
+}
+
+/*
+ * clock_gettime — High-resolution hardware-assisted POSIX clock.
+ *
+ * Combines FreeRTOS scheduler tick count with ARM Cortex-M SysTick hardware
+ * down-counter (SysTick->VAL) to yield nanosecond-level time resolution.
+ */
+int clock_gettime(clockid_t clk_id, struct timespec *tp)
+{
+    if (tp == NULL) {
+        errno = EFAULT;
+        return -1;
+    }
+
+    if (clk_id != CLOCK_REALTIME && clk_id != CLOCK_MONOTONIC) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    /*
+     * Lock-free atomic sampling of FreeRTOS tick count and SysTick counter:
+     * Reads tick count before and after sampling SysTick->VAL. If a tick interrupt
+     * fired in between, loops to resample, guaranteeing race-free consistency.
+     */
+    uint32_t ticks1, ticks2, val;
+    uint32_t load = SysTick->LOAD;
+    if (load == 0) {
+        load = (configCPU_CLOCK_HZ / configTICK_RATE_HZ) - 1UL;
+    }
+
+    do {
+        ticks1 = (uint32_t)xTaskGetTickCount();
+        val = SysTick->VAL;
+        ticks2 = (uint32_t)xTaskGetTickCount();
+    } while (ticks1 != ticks2);
+
+    /* SysTick counts downwards from LOAD to 0 */
+    uint32_t elapsed_cycles = (val <= load) ? (load - val) : 0;
+    uint64_t sub_tick_ns = ((uint64_t)elapsed_cycles * 1000000000ULL) / (uint64_t)configCPU_CLOCK_HZ;
+    uint64_t total_ns = ((uint64_t)ticks1 * (1000000000ULL / (uint64_t)configTICK_RATE_HZ)) + sub_tick_ns;
+
+    tp->tv_sec = (time_t)(total_ns / 1000000000ULL);
+    tp->tv_nsec = (long)(total_ns % 1000000000ULL);
+
     return 0;
 }
 
