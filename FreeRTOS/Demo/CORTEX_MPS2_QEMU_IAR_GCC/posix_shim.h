@@ -279,6 +279,19 @@ int pthread_cond_destroy(pthread_cond_t *cond);
 int clock_gettime(clockid_t clk_id, struct timespec *tp);
 
 /**
+ * @brief Retrieves the current calendar time and timezone.
+ *
+ * Populates tv with elapsed seconds and microseconds derived from the
+ * high-resolution hardware clock. If tz is non-NULL, zero-initializes it.
+ *
+ * @param[out] tv Pointer to struct timeval (tv_sec, tv_usec).
+ * @param[out] tz Pointer to timezone structure or void* (may be NULL).
+ *
+ * @return 0 on success, or -1 on error (with errno set to EFAULT).
+ */
+int gettimeofday(struct timeval *tv, void *tz);
+
+/**
  * @brief Suspends execution of the calling thread for a specified number of seconds.
  *
  * Translates seconds into system timer ticks (configTICK_RATE_HZ) and invokes

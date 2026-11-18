@@ -774,6 +774,41 @@ int clock_gettime(clockid_t clk_id, struct timespec *tp)
 }
 
 /*
+ * gettimeofday — Obtains time in seconds and microseconds.
+ */
+int gettimeofday(struct timeval *tv, void *tz)
+{
+    if (tv == NULL) {
+        errno = EFAULT;
+        return -1;
+    }
+
+    struct timespec ts;
+    if (clock_gettime(CLOCK_REALTIME, &ts) != 0) {
+        return -1;
+    }
+
+    tv->tv_sec  = ts.tv_sec;
+    tv->tv_usec = (suseconds_t)(ts.tv_nsec / 1000L);
+
+    if (tz != NULL) {
+        struct timezone *tzp = (struct timezone *)tz;
+        tzp->tz_minuteswest = 0;
+        tzp->tz_dsttime     = 0;
+    }
+
+    return 0;
+}
+
+/*
+ * _gettimeofday — Newlib C runtime syscall integration for gettimeofday.
+ */
+int _gettimeofday(struct timeval *tv, void *tz)
+{
+    return gettimeofday(tv, tz);
+}
+
+/*
  * sleep — Suspends thread execution for given seconds.
  */
 unsigned int sleep(unsigned int seconds)
