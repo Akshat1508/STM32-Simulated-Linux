@@ -316,12 +316,12 @@ During the implementation across the five milestones, several critical embedded 
 
 ## 5. Firmware Memory Footprint Progression
 
-Binary sizes measured using `arm-none-eabi-size`:
+Optimized build at `c43a2c61`, measured with `arm-none-eabi-size`:
 
 ```text
 arm-none-eabi-size ./output/RTOSDemo.out
    text    data     bss     dec     hex filename
-  87266     226  158594  246086   3c146 ./output/RTOSDemo.out
+  85468     226  158594  244288   3ba40 ./output/RTOSDemo.out
 ```
 
 ### Flash Memory Progression Across Milestones
@@ -333,10 +333,10 @@ arm-none-eabi-size ./output/RTOSDemo.out
 | **Milestone 2 (Group C Sockets)** | 34 | 78,162 B | +954 B | 226 B | 155,586 B | Within budget ($\le 80$ KB) |
 | **Milestone 3 (Clocks & Timers)** | 38 | 79,034 B | +872 B | 226 B | 155,586 B | Within budget ($\le 80$ KB) |
 | **Milestone 4 (Mutex & Attrs)** | 46 | 81,410 B | +2,376 B | 226 B | 155,586 B | Within budget ($\le 80$ KB) |
-| **Milestone 5 (VFS & Pipes)** | **54** | **87,266 B** | +5,856 B | 226 B | 158,594 B | **Tier 2 Complete ($\le 85\text{ KB}$ spec)** |
+| Milestone 5 (18 Nov) | 54 | 87,266 B | +5,856 B | 226 B | 158,594 B | Tier 2 complete |
+| **Optimized Tier 2 (26 Nov)** | **54** | **85,468 B** | **−1,798 B** | 226 B | 158,594 B | 83.46 KiB of code |
 
-> [!NOTE]
-> The addition of `vfs.c` (2,080 B) and FreeRTOS's `stream_buffer.c` (2,343 B, brought into the link map by `pipe()`) brings the full-featured operating system image to **87.2 KB**, comfortably meeting the target Tier 2 Flash boundary ($\le 85\text{ KB}$ specified in [CourseOfAction181126.md](file:///Users/kartikayechaturvedi/Dev/Projects/STM32-Simulated-Linux/Documentations/work181126/CourseOfAction181126.md#L286) and well within typical Cortex-M 128 KB – 512 KB Flash boundaries).
+The optimized firmware uses **158,820 B of static RAM** (`data + bss`). The code reduction is **2.06%** relative to Milestone 5. [Build measurements and QEMU results](../../results.md#optimized-tier-2-build)
 
 ---
 

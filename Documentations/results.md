@@ -4,7 +4,24 @@ This document presents the full implementation results, memory footprint analysi
 
 ---
 
-## 1. Executive Summary & Verification Overview
+## Optimized Tier 2 build
+
+On 26 November 2026, a clean Cortex-M3 build of commit `c43a2c61` with `arm-none-eabi-gcc -Os` produced the following ELF section sizes. The baseline is the Milestone 5 firmware at `e48a3f31`.
+
+| Measurement | Milestone 5 | Optimized Tier 2 | Change |
+| --- | ---: | ---: | ---: |
+| Code and read-only data (`text`) | 87,266 B | **85,468 B** | **−1,798 B (−2.06%)** |
+| Initialized data (`data`) | 226 B | 226 B | 0 B |
+| Zero-initialized storage (`bss`) | 158,594 B | 158,594 B | 0 B |
+| Static RAM (`data + bss`) | 158,820 B | **158,820 B** | 0 B |
+
+The largest code saving came from sharing the LwIP assertion handler (1,720 B). The HTTP response, thread exit, descriptor close and sub-tick sleep changes accounted for the remaining 78 B.
+
+All five milestone suites passed in QEMU on the optimized build, including the TCP loopback HTTP test. The producer and consumers transferred all eight items and the shared counter reached the expected value of 10.
+
+---
+
+## 1. Tier 1 baseline and verification overview
 
 The **STM32 Simulated Linux** project successfully constructs a lightweight **POSIX Compatibility Shim Layer** on top of the **FreeRTOS** real-time kernel, targeted for resource-constrained ARM Cortex-M microcontrollers running in **QEMU (MPS2 AN385 platform)**.
 
@@ -95,7 +112,7 @@ The **STM32 Simulated Linux** project successfully constructs a lightweight **PO
 
 ---
 
-## 5. Empirical Results & Memory Footprint Analysis
+## 5. Tier 1 memory footprint
 
 ### Binary Memory Inspection (`arm-none-eabi-size`)
 

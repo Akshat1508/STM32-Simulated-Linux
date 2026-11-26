@@ -318,4 +318,4 @@ arm-none-eabi-size ./output/RTOSDemo.out
 | **Milestone 5 (VFS & Pipes)** | **54** | **87,266 B** | +5,856 B | 226 B | 158,594 B | **Tier 2 Complete** |
 
 > [!NOTE]
-> The addition of `vfs.c` (2,080 B) and FreeRTOS's `stream_buffer.c` (2,343 B, brought into the link map by `pipe()`) keeps the full-featured operating system image at **87.2 KB**, comfortably meeting the target Tier 2 Flash boundary ($\le 85\text{ KB}$ specified in [CourseOfAction181126.md](file:///Users/kartikayechaturvedi/Dev/Projects/STM32-Simulated-Linux/Documentations/work181126/CourseOfAction181126.md#L286) and well within typical Cortex-M 128 KB – 512 KB Flash boundaries).
+> The original Milestone 5 build used 87,266 B of code on 18 November. The 26 November optimization reduced this to 85,468 B with the same 54 active APIs and 158,820 B of static RAM. [Later build measurements](../../results.md#optimized-tier-2-build)

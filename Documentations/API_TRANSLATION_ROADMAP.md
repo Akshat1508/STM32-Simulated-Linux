@@ -1,6 +1,8 @@
 # POSIX API Translation Analysis & Expansion Roadmap
 ## STM32 Simulated Linux (FreeRTOS & LwIP POSIX Compatibility Layer)
 
+This document records the Tier 1 implementation. The optimized Tier 2 build supports 54 active APIs and uses 85,468 B of code and 158,820 B of static RAM. [Current measurements](results.md#optimized-tier-2-build)
+
 ---
 
 ## 1. Executive Summary
@@ -362,7 +364,7 @@ Microcontrollers lack physical disk block devices by default. Implementing a VFS
 
 ---
 
-## 5. System Footprint & Memory Budget Analysis
+## 5. Tier 1 footprint and memory budget
 
 The compiled binary size for the ARM Cortex-M3 target (`RTOSDemo.out`) measured using `arm-none-eabi-size`:
 

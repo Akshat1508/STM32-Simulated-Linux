@@ -20,18 +20,17 @@ By translating standard UNIX/Linux system calls into native real-time OS primiti
 * **BSD Socket Networking**: Embedded BSD socket abstraction layer (`socket`, `bind`, `listen`, `accept`, `read`, `write`, `close`) integrated with the LwIP TCP/IP stack in OS mode.
 * **QEMU Interrupt-Driven Ethernet Driver**: Custom SMSC9118 (LAN9118) Ethernet hardware driver (`ethernetif.c`) processing incoming network packets via NVIC IRQ 13 interrupts inside QEMU.
 * **Demonstration POSIX HTTP Web Server**: Successfully boots and serves HTML content over virtual TCP port 80 (forwarded to host port 8080) inside QEMU.
-* **Ultra-Compact Footprint**: Achieved an instruction code footprint (`text`) of **~66 KB**, fitting comfortably within tight MCU FLASH limits.
+* **Tier 2 coverage** includes 54 active APIs for threads, synchronization, clocks, sockets, RAM files and pipes.
+* **Firmware footprint** at `c43a2c61` is **85,468 bytes of code** (`text`) and **158,820 bytes of static RAM** (`data + bss`). The optimizations saved **1,798 bytes of code (2.06%)** relative to the original Milestone 5 build. [Build measurements and QEMU results](Documentations/results.md#optimized-tier-2-build)
 
 ---
 
-## 🔮 Pending Scope & Future Directions
+## Tier 2 interfaces
 
-*(General Overview of Ongoing Development)*
-
-* **Advanced Inter-Thread Signalling**: Expanding synchronization mechanisms to support condition-based waiting and multi-task event notifications.
-* **High-Resolution Clock Systems**: Enhancing system clock querying, timestamp generation, and fine-grained timer operations.
-* **Non-Blocking Network I/O & Multiplexing**: Extending socket flag controls, non-blocking operation modes, and multi-socket event monitoring for concurrent connections.
-* **Virtual I/O Abstractions**: Exploring a lightweight file descriptor mapping layer (VFS) to seamlessly route standard I/O streams across console UARTs, sockets, and memory buffers.
+* Condition variables let threads wait for a condition and wake one or all waiters.
+* SysTick supplies sub-tick timestamps and the fine delay used by `nanosleep`.
+* Non-blocking sockets support readiness checks through `select` and `poll`.
+* The virtual file system routes descriptors to the UART console, sockets, RAM files and pipes.
 
 ---
 

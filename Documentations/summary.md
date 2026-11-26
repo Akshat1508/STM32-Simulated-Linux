@@ -1,5 +1,7 @@
 # STM32 Simulated Linux: Comprehensive System Architecture, Implementation & History Report
 
+This document records the Tier 1 implementation. The optimized Tier 2 build supports 54 active APIs and uses 85,468 B of code and 158,820 B of static RAM. [Current measurements](results.md#optimized-tier-2-build)
+
 ---
 
 ## 1. Executive Summary
@@ -230,7 +232,7 @@ typedef struct posix_thread {
 
 ---
 
-## 5. Memory Footprint & Resource Breakdown
+## 5. Tier 1 memory footprint and resource breakdown
 
 Binary analysis of `RTOSDemo.out` measured with `arm-none-eabi-size`:
 
