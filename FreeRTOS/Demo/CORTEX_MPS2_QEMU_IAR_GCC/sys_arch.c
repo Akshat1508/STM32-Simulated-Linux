@@ -22,6 +22,14 @@
 #include "lwip/err.h"
 #include "arch/sys_arch.h"
 
+/* Keep one copy of the failure path while reporting the original call site. */
+void lwip_platform_assert(const char *message, int line, const char *file)
+{
+    printf("[LWIP ASSERT] \"%s\" failed at line %d in %s\n", message, line, file);
+    fflush(NULL);
+    abort();
+}
+
 /*
  * ----------------------------------------------------------------------------
  * sys_init — Global Architecture Layer Initialization Hook

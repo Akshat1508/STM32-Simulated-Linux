@@ -15,6 +15,7 @@
  */
 
 #include "vfs.h"
+#include <stdbool.h>
 #include <string.h>
 
 /* LwIP headers for socket dispatch */
@@ -152,6 +153,17 @@ int open(const char *pathname, int flags, ...)
     return fd;
 }
 
+static bool has_other_descriptor(const vfs_file_t *file)
+{
+    for (int i = 0; i < VFS_MAX_FDS; i++) {
+        const vfs_file_t *entry = &g_vfs_table[i];
+        if (entry != file && entry->type == file->type && entry->priv == file->priv) {
+            return true;
+        }
+    }
+    return false;
+}
+
 int close(int fd)
 {
     if (!g_vfs_initialized) {
@@ -173,15 +185,9 @@ int close(int fd)
         return 0; /* Standard streams remain persistent */
     }
 
-    /* Check if other descriptors still reference this underlying node/private data */
-    int other_refs = 0;
-    for (int i = 0; i < VFS_MAX_FDS; i++) {
-        if (i != fd && g_vfs_table[i].type == f->type && g_vfs_table[i].priv == f->priv) {
-            other_refs++;
-        }
-    }
-
-    if (other_refs == 0) {
+    /* A RAM file persists after close. Only sockets and pipe ends need
+     * last-descriptor cleanup, including aliases created outside their pool. */
+    if (f->type != VFS_NODE_RAMFILE && !has_other_descriptor(f)) {
         if (f->type == VFS_NODE_SOCKET) {
             int lwip_s = (int)(uintptr_t)f->priv;
             lwip_close(lwip_s);

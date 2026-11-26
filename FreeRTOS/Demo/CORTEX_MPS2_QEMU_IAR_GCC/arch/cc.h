@@ -72,7 +72,15 @@ typedef uintptr_t mem_ptr_t;
  * ============================================================================
  */
 #define LWIP_PLATFORM_DIAG(x)   do { printf x; } while(0)
-#define LWIP_PLATFORM_ASSERT(x) do { printf("[LWIP ASSERT] \"%s\" failed at line %d in %s\n", \
-                                            x, __LINE__, __FILE__); fflush(NULL); abort(); } while(0)
+#ifdef __cplusplus
+extern "C" {
+#endif
+void lwip_platform_assert(const char *message, int line, const char *file)
+    __attribute__((noreturn));
+#ifdef __cplusplus
+}
+#endif
+
+#define LWIP_PLATFORM_ASSERT(message) lwip_platform_assert((message), __LINE__, __FILE__)
 
 #endif /* LWIP_ARCH_CC_H */

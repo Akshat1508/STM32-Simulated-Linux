@@ -127,6 +127,30 @@ static void remove_thread(posix_thread_t *t)
     taskEXIT_CRITICAL();
 }
 
+/* Complete both an explicit pthread_exit and a return from the start routine. */
+static void finish_thread(posix_thread_t *t, void *retval)
+{
+    if (t != NULL) {
+        t->retval = retval;
+
+        if (t->detached) {
+            /* Detached threads self-clean: no joiner will free resources */
+            remove_thread(t);
+            vSemaphoreDelete(t->join_sem);
+            vPortFree(t);
+        } else {
+            /* Signal any waiting pthread_join() caller */
+            xSemaphoreGive(t->join_sem);
+        }
+    }
+
+    /* Delete the underlying FreeRTOS task and transition to Dead state */
+    vTaskDelete(NULL);
+
+    /* Unreachable code to prevent compiler warnings */
+    while (1);
+}
+
 /* ----------------------------------------------------------------------------
  * Function: posix_thread_wrapper
  * Objective: Universal task entry bridge function for all POSIX threads.
@@ -134,7 +158,7 @@ static void remove_thread(posix_thread_t *t)
  * Mechanics:
  *   1. Extracts user start_routine and argument from posix_thread_t.
  *   2. Executes user routine: retval = start_routine(arg).
- *   3. Enforces clean exit by passing retval directly to pthread_exit(retval).
+ *   3. Completes the thread using the descriptor supplied at creation.
  * ----------------------------------------------------------------------------
  */
 static void posix_thread_wrapper(void *pvParameters)
@@ -144,8 +168,8 @@ static void posix_thread_wrapper(void *pvParameters)
     /* Invoke the user's thread entry function */
     void *retval = t->start_routine(t->arg);
 
-    /* Guarantee termination and join signaling via pthread_exit */
-    pthread_exit(retval);
+    /* The wrapper already has the descriptor for this task. */
+    finish_thread(t, retval);
 }
 
 /* ============================================================================
@@ -333,32 +357,11 @@ int pthread_join(pthread_t thread, void **retval)
 }
 
 /*
- * pthread_exit — Terminates the active thread, stores return status,
- * unblocks joiners, or immediately performs self-reclamation if detached.
+ * pthread_exit — Locate the calling task's descriptor for an explicit exit.
  */
 void pthread_exit(void *retval)
 {
-    /* Query the active task's thread node */
-    posix_thread_t *t = find_thread(xTaskGetCurrentTaskHandle());
-    if (t != NULL) {
-        t->retval = retval;
-
-        if (t->detached) {
-            /* Detached threads self-clean: no joiner will free resources */
-            remove_thread(t);
-            vSemaphoreDelete(t->join_sem);
-            vPortFree(t);
-        } else {
-            /* Signal any waiting pthread_join() caller */
-            xSemaphoreGive(t->join_sem);
-        }
-    }
-
-    /* Delete the underlying FreeRTOS task and transition to Dead state */
-    vTaskDelete(NULL);
-
-    /* Unreachable code to prevent compiler warnings */
-    while (1);
+    finish_thread(find_thread(xTaskGetCurrentTaskHandle()), retval);
 }
 
 /*
@@ -1115,7 +1118,14 @@ int nanosleep(const struct timespec *req, struct timespec *rem)
 
     /* Fine sub-millisecond delay: busy loop using SysTick counter */
     if (residual_ns > 0) {
-        uint32_t cycles_to_wait = ((uint64_t)residual_ns * (uint64_t)configCPU_CLOCK_HZ) / 1000000000ULL;
+        uint32_t cycles_to_wait;
+        const uint32_t ns_per_second = 1000000000UL;
+        if (ns_per_second % configCPU_CLOCK_HZ == 0) {
+            /* Integral cycle period (40 ns on MPS2): a single 32-bit division. */
+            cycles_to_wait = residual_ns / (ns_per_second / configCPU_CLOCK_HZ);
+        } else {
+            cycles_to_wait = ((uint64_t)residual_ns * configCPU_CLOCK_HZ) / ns_per_second;
+        }
         uint32_t load = SysTick->LOAD;
         if (load == 0) {
             load = (configCPU_CLOCK_HZ / configTICK_RATE_HZ) - 1UL;

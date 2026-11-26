@@ -348,10 +348,7 @@ void *web_server_thread(void *arg)
             /* Read incoming HTTP request string */
             int read_bytes = lwip_read(client_fd, buffer, sizeof(buffer) - 1);
             if (read_bytes > 0) {
-                buffer[read_bytes] = '\0';
-
-                /* Formulate HTTP/1.1 200 OK HTML payload */
-                const char *response =
+                static const char response[] =
                     "HTTP/1.1 200 OK\r\n"
                     "Content-Type: text/html\r\n"
                     "Connection: close\r\n"
@@ -367,7 +364,7 @@ void *web_server_thread(void *arg)
                     "</html>\n";
 
                 /* Transmit HTML payload over network interface */
-                lwip_write(client_fd, response, strlen(response));
+                lwip_write(client_fd, response, sizeof(response) - 1);
             }
             /* Graceful TCP close (sends FIN packet) */
             lwip_close(client_fd);
